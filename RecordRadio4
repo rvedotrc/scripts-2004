@@ -1,0 +1,2 @@
+#!/bin/sh
+./bin/RecordRealAudio http://www.bbc.co.uk/radio4/realplayer/media/fmg2.ram radio4-`date +'%Y%m%d-%H%M%S'`.wav

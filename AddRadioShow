@@ -1,0 +1,181 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+use warnings;
+use Time::ParseDate qw( parsedate );
+use Term::ReadLine;
+
+my $recommended_dir = "/mnt/hdb1/rachel";
+sub dev_inode { my @s = stat $_[0]; "$s[0],$s[1]" }
+unless (dev_inode(".") eq dev_inode($recommended_dir))
+{
+	my $ans;
+	get_input("cd to $recommended_dir?: ", sub { ($ans) = /^\s*([yn])/i });
+	$ans =~ /y/i and chdir $recommended_dir;
+}
+
+# Description
+my $desc = get_input("Programme name: ");
+
+# Station
+my $station = get_input("Station: ", sub { /^(bbc7|radio4)$/ });
+
+# Start date/time
+my $start;
+get_input("Start time: ", sub {
+	$start = parsedate($_, PREFER_FUTURE=>1, WHOLE=>1, UK=>1, DATE_REQUIRED=>1, TIME_REQUIRED=>1);
+	defined($start) and $start > time();
+});
+
+# End date/time or duration
+my $end;
+get_input("End time: ", sub {
+	$end = parsedate($_, NOW=>$start, PREFER_FUTURE=>1, WHOLE=>1, UK=>1);
+	defined($end) and $end > time();
+});
+
+# Repeat count / interval
+my $repcount = get_input("Repeat count: ", sub { /^(\d*)$/ });
+$repcount ||= 1;
+
+my $repint;
+if ($repcount>1)
+{
+	my ($n, $u);
+	get_input("Repeat interval: ", sub { ($n, $u) = /^(\d+)([dw])$/i });
+	$repint = $n * 86400;
+	$repint *= 7 if $u =~ /w/i;
+}
+
+print <<EOF;
+Name: $desc
+Station: $station
+Start: ${\ scalar localtime $start }
+End:   ${\ scalar localtime $end }
+Length: ${\( ($end-$start)/60 )} min
+EOF
+
+if ($repcount==1)
+{
+	print "Not repeated\n";
+} else {
+	my ($s, $e) = ($start, $end);
+	print "Repetitions:\n";
+	for my $i (1..$repcount)
+	{
+		printf "  #%2d.  %s - %s\n",
+			$i,
+			scalar localtime $s,
+			scalar localtime $e,
+			;
+		$s += $repint;
+		$e += $repint;
+	}
+}
+
+my $ans;
+get_input("Confirm?: ", sub { ($ans) = /^\s*([yn])/i });
+$ans =~ /y/i or exit;
+
+################################################################################
+
+my $radiofile = "$ENV{HOME}/.radiolist";
+my $radiodata = do $radiofile
+	or $!{ENOENT}
+	or die ($! || $@);
+$radiodata ||= [];
+
+{
+	my ($s, $e) = ($start, $end);
+	for my $i (1..$repcount)
+	{
+		my $id1 = add_at("DISPLAY=:0.0 /home/rachel/bin/RecordRadio --station=$station", $s-300);
+		my $id2 = add_at("killall realplay", $e+300);
+		
+		print "#$i - start id=$id1, stop id=$id2\n";
+
+		push @$radiodata, {
+			name => $desc,
+			station => $station,
+			start => $s,
+			end => $e,
+			rec_start => $s-300,
+			rec_stop => $e+300,
+			id_start => $id1,
+			id_stop => $id2,
+			rep_seq	=> $i,
+			rep_tot => $repcount,
+		};
+
+		$s += $repint if $repcount;
+		$e += $repint if $repcount;
+	}
+}
+
+open(my $radiofh, ">$radiofile.new") or die $!;
+use Data::Dumper;
+print $radiofh Data::Dumper->Dump([ $radiodata ],[ 'radiodata' ]) or die;
+close $radiofh or die;
+rename "$radiofile.new", $radiofile;
+
+sub add_at
+{
+	my ($cmd, $epoch) = @_;
+	require POSIX;
+	# TODO check timezone handling
+	my $atspec = POSIX::strftime("%H:%M %Y-%m-%d", localtime $epoch);
+
+	use IPC::Open3;
+	require IO::Handle;
+	my ($rdrfh, $wtrfh, $errfh) = map { IO::Handle->new } (1,2,3);
+    my $pid = open3($wtrfh, $rdrfh, $errfh, '/usr/bin/at', '-v', $atspec);
+
+	print $wtrfh "$cmd\n";
+	close $wtrfh;
+
+	local $/;
+	my $out = <$rdrfh>;
+	my $err = <$errfh>;
+
+	waitpid $pid, 0;
+	$? == 0 or warn "'at' exited with $?.  Output was:\n$out\nError was:\n$err\n";
+
+	$out eq ""
+		or warn "Unexpected output: '$out'\n";
+
+	$err =~ /^job (\d+) at/m
+		or warn "Can't find job ID in '$err'\n";
+	$1;
+}
+
+################################################################################
+
+my $term;
+sub initterm
+{
+  use Term::ReadLine;
+  $term = new Term::ReadLine $0;
+  my $OUT = $term->OUT || \*STDOUT;
+  select $OUT;
+}
+
+sub get_input
+{
+	my ($prompt, $checksub) = @_;
+
+	initterm() unless $term;
+
+	local $_;
+	for (;;)
+	{
+		$_ = $term->readline($prompt);
+		defined() or die "EOF\n";
+		$term->addhistory($_) if /\S/;
+		last if not $checksub or &$checksub();
+	}
+
+	$_;
+}
+
+# eof AddRadioShow

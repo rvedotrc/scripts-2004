@@ -1,0 +1,346 @@
+#!/usr/bin/perl
+# vi: set ts=4 sw=4 :
+
+use strict;
+use warnings;
+
+my $schedfile = "$ENV{HOME}/.radiolist2";
+
+use constant MINS_IN_WEEK => 7 * 24 * 60;
+my %dow = (
+	Sun	=> 0,
+	Mon	=> 1,
+	Tue	=> 2,
+	Wed	=> 3,
+	Thu	=> 4,
+	Fri	=> 5,
+	Sat	=> 6,
+);
+
+use Getopt::Long;
+GetOptions(
+	"test-crontab"	=> \&test_crontab,
+	"crontab"		=> \&crontab,
+) or exit 2;
+@ARGV and die;
+exit;
+
+sub crontab
+{
+	my $time = do { use integer; (time()+30) / 300 * 300 };
+	my $schedule = load_schedule($time);
+
+	do_crontab(
+		schedule=> $schedule,
+		time	=> $time,
+		verbose	=> (-t(STDIN) or -t(STDOUT)),
+	) or exit;
+
+	save_schedule($schedule);
+}
+
+sub test_crontab
+{
+	my $time = do { use integer; (time()+30) / 300 * 300 };
+	
+	my $testfile = $schedfile . ".test";
+	use File::Copy qw( copy );
+	copy($schedfile, $testfile) or die;
+	$schedfile = $testfile;
+
+	print "Starting schedule:\n";
+	print_schedule(load_schedule($time), \*STDOUT);
+	print "\n";
+
+	while (1)
+	{
+		print localtime($time)."\n";
+		my $schedule = load_schedule($time);
+
+		do_crontab(
+			schedule=> $schedule,
+			time	=> $time,
+			verbose	=> 1,
+		) or next;
+
+		print "New schedule:\n";
+		print_schedule($schedule, \*STDOUT);
+		print "\n";
+		save_schedule($schedule);
+
+	} continue {
+		$time += 300;
+	}
+}
+
+sub do_crontab
+{
+	my %opts = @_;
+	my $schedule = $opts{'schedule'};
+	my $time = $opts{'time'};
+	my $verbose = $opts{'verbose'};
+
+	open(my $vlog, ($verbose ? ">&STDERR" : ">/dev/null"));
+
+	(my $current) = grep { $_->{is_current} } @$schedule;
+	my $offset = time_mins_offset($time);
+
+	if ($current)
+	{
+		# Has this programme finished yet?
+		my $ago = $offset - $current->{stop};
+		$ago = ($ago + MINS_IN_WEEK) % MINS_IN_WEEK;
+
+		if ($ago >= 5 and $ago <= MINS_IN_WEEK/2)
+		{
+			delete $current->{is_current};
+			shift @$schedule;
+			push @$schedule, $current;
+
+			# Are we meant to be recording another programme now?
+			my $next = $schedule->[0];
+			if ($offset >= $next->{start} and $offset <= $next->{stop})
+			{
+				# Is this next one on the same station?
+				if ($next->{station} eq $current->{station})
+				{
+					# Carry on recording...
+					print "Done recording $current->{line}, carrying on for $next->{line}\n";
+					$next->{is_current} = 1;
+				} else {
+					# Stop recording on this station, and start on the next
+					# one.
+					print "Stop recording $current->{line}\n";
+					stop_recording($current);
+					print "Start recording $next->{line}\n";
+					#start_recording($next);
+					{ local $ENV{DISPLAY} = ":1"; start_recording($next) }
+					{ local $ENV{DISPLAY} = ":2"; start_recording($next) }
+					$next->{is_current} = 1;
+				}
+			} else {
+				# Just stop recording this one
+				print "Stop recording $current->{line}\n";
+				stop_recording($current);
+			}
+
+			return 1;
+		} else {
+			print $vlog "Still recording $current->{line}\n";
+			return 0;
+		}
+	} elsif (@$schedule) {
+		# Nothing is recording yet.  Is the next programme about to start?
+		my $next = $schedule->[0];
+
+		my $start_in = $next->{start} - $offset;
+		$start_in = ($start_in + MINS_IN_WEEK) % MINS_IN_WEEK;
+
+		if ($start_in <= 5)
+		{
+			# Start recording
+			print "Starting to record $next->{line}\n";
+			#start_recording($next);
+			{ local $ENV{DISPLAY} = ":1"; start_recording($next) }
+			{ local $ENV{DISPLAY} = ":2"; start_recording($next) }
+			$next->{is_current} = 1;
+			return 1;
+		} else {
+			# TODO detection of late starting
+			# Next programme not yet started
+			print $vlog "Waiting for next programme ($next->{line})\n";
+			return 0;
+		}
+	} else {
+		# Empty schedule
+		print $vlog "Empty schedule\n";
+		return 0;
+	}
+
+	0;
+}
+
+################################################################################
+
+use String::ShellQuote qw( shell_quote );
+sub make_cmd { join " ", map { shell_quote($_) } @_ }
+
+sub start_recording
+{
+	my $entry = shift;
+
+	my $display = $ENV{DISPLAY};
+	$display =~ s/\W//g;
+	
+	my $cmd = make_cmd(
+		"/home/rachel/bin/RecordRadio",
+		"--station", $entry->{station},
+		"--prefix", "/home/rachel/hdb1/new/$entry->{name}-$display",
+		"--restart",
+		"--silent",
+	) . " 2>&1 | " . make_cmd(
+		"mail",
+		"-s", "Recording: $entry->{name}",
+		"rachel",
+	);
+
+	$cmd = "nohup sh -c ".shell_quote($cmd)." </dev/null >/dev/null &";
+
+	#print "System: $cmd\n";
+	system $cmd;
+}
+
+sub stop_recording
+{
+	my $entry = shift;
+	killall("RecordRadio");
+	killall("realplay");
+}
+
+sub killall
+{
+	my $cmd = shift;
+
+	my $n = 0;
+	while (1)
+	{
+		($n % 5) or system "killall $cmd";
+		last if $n++ > 15;
+		sleep 1;
+		system "killall -0 $cmd 2>/dev/null";
+		last if $?;
+	}
+}
+
+################################################################################
+
+sub load_schedule
+{
+	my $time = shift;
+
+	my $schedule = [];
+
+	my $dow = join "|", keys %dow;
+	my $hhmm = qr/
+		(?: [01][0-9] | 2[0-3] )
+		[0-5][0-9]
+	/x;
+
+	if (open(my $fh, "<", $schedfile))
+	{
+		my $current = "";
+		my %seen;
+
+		while (<$fh>)
+		{
+			chomp;
+
+			$current = $1, next
+				if /^current=(.*)$/;
+
+			next if $seen{$_}++;
+
+			my ($day, $start, $stop, $station, $name) = m/^
+				($dow)
+				\t ($hhmm)
+				\t ($hhmm)
+				\t (\w+)
+				\t (.*)
+			$/x
+				or warn("? $_"), next;
+
+			my $e = +{
+				line		=> $_,
+				station		=> $station,
+				name		=> $name,
+			};
+
+			my $daynum = $dow{$day};
+			defined($daynum) or die;
+
+			$e->{start} = mins_offset($daynum, $start);
+			$daynum = ($daynum+1) % 7 if $stop lt $start;
+			$e->{stop} = mins_offset($daynum, $stop);
+
+#			my $distance_to_next = $e->{start} - $current;
+#			$distance_to_next += 70000 if $distance_to_next < 0;
+#			$e->{distance} = $distance_to_next;
+
+			push @$schedule, $e;
+		}
+
+		for (@$schedule)
+		{
+			$_->{is_current} = 1 if $_->{line} eq $current;
+		}
+
+	} else {
+		die "Open $schedfile: $!\n" unless $!{ENOENT};
+	}
+
+	(my $current) = grep { $_->{is_current} } @$schedule;
+	unless ($current)
+	{
+		# Rotate the schedule to the correct point
+		#@$schedule = sort { $a->{distance} <=> $b->{distance} } @$schedule;
+	} else {
+		$schedule->[0]{is_current} or die;
+	}
+
+	$schedule;
+}
+
+sub save_schedule
+{
+	my $schedule = shift;
+
+	use File::Temp qw( tempfile );
+	use File::Basename qw( dirname );
+	my ($fh, $filename) = tempfile(
+		"radiov2-XXXXXXXX",
+		DIR => dirname($schedfile),
+		CLEANUP => 1,
+	);
+
+	print_schedule($schedule, $fh);
+	close($fh)
+		or die "close: $!\n";
+	rename($filename, $schedfile)
+		or die "rename: $!\n";
+}
+
+sub print_schedule
+{
+	my $schedule = shift;
+	my $fh = shift;
+
+	for (@$schedule)
+	{
+		$_->{is_current} or next;
+		print $fh "current=$_->{line}\n";
+		last;
+	}
+
+	for (@$schedule)
+	{
+		print $fh $_->{line}."\n";
+	}
+}
+
+################################################################################
+
+sub time_mins_offset
+{
+	my $time = shift;
+	my @l = localtime $time;
+	$l[6] * 24 * 60 + $l[2] * 60 + $l[1];
+}
+
+sub mins_offset
+{
+	my ($daynum, $hhmm) = @_;
+	my ($h, $m) = $hhmm =~ /^(\d\d)(\d\d)$/;
+	$daynum * 24 * 60 + $h * 60 + $m;
+}
+
+# eof RadioV2Scheduler

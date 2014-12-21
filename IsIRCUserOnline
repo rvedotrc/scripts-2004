@@ -1,0 +1,78 @@
+#!/usr/bin/perl
+# vi: set ts=4 sw=4 :
+
+use warnings;
+use strict;
+
+use Net::IRC;
+
+select STDERR; $| = 1;
+select STDOUT; $| = 1;
+
+my $server = "irc.freenode.net";
+my $checknick = "MBChatLogger";
+my $mynick = "IsIRCUserOnline.$$";
+
+my $irc = Net::IRC->new;
+my $conn = $irc->newconn(
+	Nick    => $mynick,
+	Server  => $server,
+	Ircname => $mynick,
+);
+
+# Debug all events
+{
+	require Net::IRC::Connection;
+	my $olddefault = \&Net::IRC::Connection::_default;
+	my $newdefault = sub {
+		my ($self, $event, @args) = @_;
+		print "_default:\n";
+		use Data::Dumper;
+		print Data::Dumper->Dump([ $event, \@args ],[ 'event', '*args' ]);
+		$event->dump;
+		goto $olddefault;
+	};
+	*Net::IRC::Connection::_default = $newdefault;
+}
+
+my @queue = (
+	sub { $conn->ison($checknick) },
+	sub { $conn->ison("nosuchq34ot8j2") },
+	sub { $conn->whois($checknick) },
+	sub { $conn->whois("nosuchq34ot8j2") },
+	sub { $conn->privmsg($checknick, "ping") },
+	sub { $conn->privmsg("nosuchq34ot8j2", "ping") },
+);
+
+my $doqueue;
+$doqueue = sub {
+	my $next = shift @queue;
+	$next ? &$next : $conn->quit;
+	if (@queue)
+	{
+		alarm(1);
+		$SIG{ALRM} = $doqueue;
+	} else {
+		alarm(0);
+	}
+};
+
+my $on_connect = sub {
+        my $self = shift;
+        print "Logged in.\n";
+		&$doqueue();
+};
+
+my $debug_event = sub {
+	my ($self, $event, @args) = @_;
+	print "debug_event:\n";
+	use Data::Dumper;
+	print Data::Dumper->Dump([ $self, $event, \@args ],[ 'self', 'event', '*args' ]);
+};
+
+$conn->add_handler('endofmotd', $on_connect);
+#$conn->add_handler('ison', $debug_event);
+
+print "Begin loop\n";
+$irc->start;
+print "End loop\n";

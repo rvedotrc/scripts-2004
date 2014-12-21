@@ -1,0 +1,6 @@
+#!/bin/sh
+
+[ "$#" = 2 ] || ( echo "Usage: RecordRealAudioOgg URL FILE" >&2 ; exit 2 )
+/usr/local/bin/vsound --stdout --dspout --timing /usr/local/RealPlayer8/realplay "$1" | sox -t au - -t wav - | oggenc -o "$2" -
+
+# eof RecordRealAudioOgg

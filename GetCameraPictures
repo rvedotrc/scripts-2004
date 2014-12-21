@@ -1,0 +1,51 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+use Getopt::Long;
+my $delete = 0;
+GetOptions(
+	"delete!"	=> \$delete,
+) or exit 2;
+@ARGV and die;
+
+my $base = "/mnt/camera";
+my $path = "$base/dcim/100casio";
+my $already_mounted = -d $path;
+
+do { system "mount $base"; exit $? if $? }
+	unless $already_mounted;
+
+require POSIX;
+my $stamp = POSIX::strftime('%Y%m%d-%H%M%S', gmtime);
+
+my $dest = "$ENV{HOME}/var/pictures/camera/originals/$stamp";
+use File::Path;
+mkpath($dest);
+-d $dest or die $!;
+
+if ($delete)
+{
+	system "mv -v $path/* $dest/";
+} else {
+	system "rsync -avu $path/ $dest/";
+}
+my $rc = $?;
+
+my @ids =
+	sort { $a <=> $b }
+	map { /^.*\/cimg(\d+)\.\w+$/ ? (0+$1) : () }
+	glob "$dest/*";
+
+my ($min, $max) = @ids[0,-1];
+
+rename $dest, "$dest-$min-$max" or warn $!;
+
+system "BackupPictureTimes";
+system "chmod -R -w $dest-$min-$max";
+
+system "umount $base" unless $already_mounted;
+exit $rc >> 8;
+
+# eof GetCameraPictures

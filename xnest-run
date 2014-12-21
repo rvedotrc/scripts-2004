@@ -1,0 +1,148 @@
+#!/bin/sh
+
+# xvfb-run - run the specified command in a virtual X server
+
+# This script starts an instance of Xvfb, the "fake" X server, runs a
+# command with that server available, and kills the X server when
+# done.  The return value of the command becomes the return value of
+# this script.
+#
+# If anyone is using this to build a Debian package, make sure the
+# package Build-Depends on xvfb, xbase-clients, and xfonts-base.
+
+set -e
+
+PROGNAME=xvfb-run
+SERVERNUM=99
+AUTHFILE=
+ERRORFILE=/dev/null
+STARTWAIT=3
+XVFBARGS="-screen 0 640x480x8"
+LISTENTCP="-nolisten tcp"
+XAUTHPROTO=.
+
+# display a usage message
+usage () {
+    cat << EOF
+Usage: $PROGNAME [OPTION ...] COMMAND
+
+run COMMAND (usually an X client) in a virtual X server environment
+
+Options:
+-a        --auto-servernum   try to get a free server number, starting at
+                               --server-num
+-e FILE   --error-file=FILE  file used to store xauth errors and Xvfb output
+                               (defualt: $ERRORFILE)
+-f FILE   --auth-file=FILE   file used to store auth cookie
+                               (default: ./.Xauthority)
+-h        --help             display this usage message and exit
+-n NUM    --server-num=NUM   server number to use (default: $SERVERNUM)
+-l        --listen-tcp       enable TCP port listening in the X server
+-p PROTO  --xauth-protocol=PROTO   X authority protocol name to use
+                                     (defaults to xauth's default)
+-s ARGS   --server-args=ARGS  arguments (other than server number and -nolisten
+                                tcp) to pass to the Xvfb server
+                                (default: \"$XVFBARGS\")
+-w DELAY  --wait=DELAY       delay in seconds to wait for Xvfb to start
+                               (default: $STARTWAIT)
+EOF
+    :;
+}
+
+# find free server number by looking at .X*-lock files in /tmp
+find_free_servernum() {
+    i=$SERVERNUM
+    while [ -f /tmp/.X$i-lock ]; do
+        i=$(($i + 1))
+    done
+    echo $i;
+}
+
+# parse command line
+ARGS=$(getopt --options +ae:f:hn:lp:s:w: \
+       --long auto-servernum,error-file:auth-file:,help,server-num:,listen-tcp,xauth-protocol:,server-args:,wait: \
+       --name "$PROGNAME" -- "$@")
+
+if [ $? -ne 0 ]; then
+    echo "$PROGNAME: error while getting options" >&2
+    exit 1
+fi
+
+eval set -- "$ARGS"
+
+while :; do
+    case "$1" in
+        -a|--auto-servernum) SERVERNUM=$(find_free_servernum) ;;
+        -e|--error-file) ERRORFILE="$2"; shift ;;
+        -f|--auth-file) AUTHFILE="$2"; shift ;;
+        -h|--help) SHOWHELP="yes" ;;
+        -n|--server-num) SERVERNUM="$2"; shift ;;
+        -l|--listen-tcp) LISTENTCP="" ;;
+        -p|--xauth-protocol) XAUTHPROTO="$2"; shift ;;
+        -s|--server-args) XVFBARGS="$2"; shift ;;
+        -w|--wait) STARTWAIT="$2"; shift ;;
+        --) shift; break ;;
+        *) echo "$PROGNAME: error while parsing option \"$1\"" >&2
+           usage >&2
+           exit 1
+           ;;
+    esac
+    shift
+done
+
+if [ "$SHOWHELP" ]; then
+    usage
+    exit 0
+fi
+
+if [ -z "$*" ]; then
+    echo "$PROGNAME: need a command to run; aborting" >&2
+    exit 2
+fi
+
+if ! which xauth > /dev/null; then
+    echo "$PROGNAME: xauth command not found; aborting" >&2
+    exit 3
+fi
+
+# If the user did not specify an X authorization file to use, set up a
+# temporary directory to house one.
+if [ -z "$AUTHFILE" ]; then
+    XVFB_RUN_TMPDIR="${TMPDIR:-/tmp}/$PROGNAME.$$"
+    if ! mkdir -p -m 700 "$XVFB_RUN_TMPDIR"; then
+        echo "$PROGNAME: temporary directory $XVFB_RUN_TMPDIR already exists;"
+                         "aborting" >&2
+        exit 4
+    fi
+    AUTHFILE=$(tempfile -n "$XVFB_RUN_TMPDIR/Xauthority")
+fi
+
+# start Xvfb
+MCOOKIE=$(mcookie)
+XAUTHORITY=$AUTHFILE xauth add :$SERVERNUM $XAUTHPROTO $MCOOKIE > $ERRORFILE 2>&1
+XAUTHORITY=$AUTHFILE Xvfb :$SERVERNUM $XVFBARGS $LISTENTCP > $ERRORFILE 2>&1 &
+XVFBPID=$!
+sleep $STARTWAIT
+
+# start the command and save its exit status
+set +e
+DISPLAY=:$SERVERNUM XAUTHORITY=$AUTHFILE $@ 2>&1
+RETVAL=$?
+set -e
+
+# kill Xvfb now that the command has exited
+kill $XVFBPID
+
+# clean up
+XAUTHORITY=$AUTHFILE xauth remove :$SERVERNUM > $ERRORFILE 2>&1
+if [ -n "$XVFB_RUN_TMPDIR" ]; then
+    if ! rm -r "$XVFB_RUN_TMPDIR"; then
+        echo "$PROGNAME: error while cleaning up temporary directory" >&2
+        exit 5
+    fi
+fi
+
+# return the executed command's exit status
+exit $RETVAL
+
+# vim:set ai et sts=4 sw=4 tw=0:

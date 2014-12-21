@@ -1,0 +1,22 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+for my $arg (@ARGV)
+{
+	if ($arg =~ /\A\d+\.\d+\.\d+\.\d+\/\d+\z/)
+	{
+		my ($netmask, $netbits) = split '/', $arg;
+		my $numhosts = 1 << (32 - $netbits);
+		my $baseaddr = unpack "N", pack "C4", split /\./, $netmask;
+
+		for (0..$numhosts-1)
+		{
+			print join ".", unpack "C4", pack "N", $baseaddr++;
+			print "\n";
+		}
+	} else {
+		warn "I don't understand '$arg' ...\n";
+	}
+}
+
+# eof OutputIPRange

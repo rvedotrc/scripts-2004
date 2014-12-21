@@ -1,0 +1,962 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+my $sDebugOpts;
+
+BEGIN
+{
+	use Getopt::Long;
+
+	my %debug_opts = (
+		DebugSendReceive	=> 0, # each packet sent and received
+		DebugTimeout		=> 0, # each time a ping times out
+		DebugLoop			=> 0, # the main loop
+		DebugAnswer			=> 0, # when the answer to a ping is determined
+		DebugStateChange	=> 1, # ping state changes
+		DebugCacheLoad		=> 0, # loading the pingcache files
+		DebugNegativeIcmp	=> 0, # TTL-exceed / unreachable
+		DebugCacheExpiry	=> 1, # expired pingcache records
+		DebugHistory		=> 1, # insertion of pingstatushistory records
+		DebugOther			=> 0, # any other debugging
+	);
+
+	sub toggle_debug
+	{
+		my ($opt, $name) = @_;
+
+		for (keys %debug_opts)
+		{
+			lc($_) eq lc("debug".$name)
+				or lc($name) eq "all"
+				or next;
+			$debug_opts{$_} = ($opt =~ /^no/i ? 0 : 1);
+			return 1;
+		}
+
+		die "Bad --$opt value '$name'\n";
+	}
+
+	GetOptions(
+		"debug=s" => \&toggle_debug,
+		"nodebug=s" => \&toggle_debug,
+		"no-debug=s" => \&toggle_debug,
+		"help" => sub { usage(); exit; },
+	) or exit 2;
+
+	require constant;
+	while (my ($k, $v) = each %debug_opts)
+	{
+		import constant $k, $v;
+	}
+
+	$sDebugOpts = join ", ", grep { $debug_opts{$_} } sort keys %debug_opts;
+
+	sub usage
+	{
+		print "Allowed options:\n";
+		print "  --[no]debug=(all|" . join("|", sort map { substr($_, 5) } keys %debug_opts) . ")\n";
+	}
+}
+
+#usage(), exit 2 if @ARGV;
+
+printf "%s : Enabled debug options are %s\n", scalar localtime, $sDebugOpts
+	if $sDebugOpts;
+
+use Socket qw( SOCK_DGRAM SOCK_STREAM SOCK_RAW PF_INET inet_aton sockaddr_in inet_ntoa );
+use Time::HiRes qw( gettimeofday tv_interval sleep );
+
+my $MY_DYNROUTED_IP = '195.60.9.122';#$me->primary_ip;
+my $MY_RESROUTED_IP = 0;#$me->resiliency_routed_ip;
+
+use constant PING_TIMEOUT_ADSL => 5;
+use constant PING_TIMEOUT_ISDN => 5;
+use constant PING_TIMEOUT_PSTN => 15;
+
+# Ping interval to (ADSL|Resiliency|Test) via (ADSL|ISDN|PSTN)
+use constant PING_INTERVAL_AVA => 7;
+use constant PING_INTERVAL_RVA => 7;
+use constant PING_INTERVAL_TVA => 7;
+use constant PING_INTERVAL_AVI => 7;
+use constant PING_INTERVAL_RVI => 7;
+use constant PING_INTERVAL_TVI => 7;
+use constant PING_INTERVAL_AVP => 17;
+use constant PING_INTERVAL_RVP => 17;
+use constant PING_INTERVAL_TVP => 17;
+
+use constant NIBBLE_INTERVAL => 0.01;
+
+use constant ICMP_DESTINATION_UNREACHABLE => 3;
+use constant ICMP_TTL_EXCEEDED => 11;
+use constant ICMP_ECHO_REPLY => 0;
+use constant ICMP_ECHO_REQUEST => 8;
+
+use constant PAYLOAD_DATA => "Powernet";
+
+use constant PINGCACHE_RECORD_LENGTH => 20;
+use constant PINGCACHE_RECORD_FORMAT => "a4 a4 V V V";
+use constant PINGCACHE_RECORD_FIELDS => qw( SRCPACK DSTPACK STATE STATETIME LASTTESTTIME );
+use constant PINGCACHE_EXPIRE_TIME => 60 * 5;
+
+{
+	#my $dir = PowerNet::InstallConfig->PingerCacheDir;
+	my $dir = "/tmp/Pinger2";
+	use File::Path;
+	mkpath($dir) or die $!
+		unless -d $dir;
+	chdir $dir or die $!;
+}
+
+my @h;
+for (@ARGV)
+{
+	(push @h, $_), next if /\d+\.\d+\.\d+\.\d+/;
+	my @host = gethostbyname($_)
+		or die "? $_\n";
+	push @h, map { inet_ntoa($_) } @host[4..$#host];
+}
+print "Pinging @h\n";
+
+initsockets($MY_DYNROUTED_IP);#, $MY_RESROUTED_IP);
+addbranch('1', \@h, '1', 'Dummy');
+remove_unused_pingcache_files();
+my $db;
+
+$| = 1;
+
+my $fReReadBranches = 0;
+local $SIG{USR1} = sub { ++$fReReadBranches };
+
+printf "%s : Starting the main loop\n", scalar localtime;
+my $time;
+my $localtime;
+
+while (1)
+{
+	if ($fReReadBranches)
+	{
+		vReReadBranches();
+		$fReReadBranches = 0;
+	}
+
+	$time = time;
+	$localtime = localtime $time;
+	sleep(NIBBLE_INTERVAL) if NIBBLE_INTERVAL;
+	nibble();
+	print "." if DebugLoop;
+}
+
+exit;
+
+################################################################################
+
+my %sockets;
+
+sub initsockets
+{
+	my $icmp_proto = (getprotobyname('icmp'))[2]
+		or die("Can't get icmp protocol by name");
+
+	for my $ip (@_)
+	{
+		socket(my $fh, PF_INET, SOCK_RAW, $icmp_proto)
+			or die("icmp socket error - $!");
+
+		# Don't UTF-8 encode the packets!
+		binmode $fh;
+
+		my $addr = sockaddr_in(0, inet_aton($ip));
+		defined(bind($fh, $addr))
+			or die "bind to $ip: $!";
+
+		my $bits = "";
+		vec($bits, fileno($fh), 1) = 1;
+
+		my %sock = (
+			IP => $ip,
+			SOCK => $fh,
+			BITS => $bits,
+		);
+
+		$sockets{$ip} = \%sock;
+	}
+}
+
+my %branches;
+
+sub _get_branches { \%branches }
+
+sub addbranch
+{
+	my ($branchid, $pings, $code, $name) = @_;
+
+	my %branch = (
+		BRANCHID => $branchid,
+		#IP_ADSL1 => $adsl1,
+		#IP_ADSL2 => $adsl2,
+		#IP_RESILIENCY => $res,
+		#IP_TEST => $test,
+		#TYPE => $type,
+		BRANCHCODE => $code,
+		BRANCHNAME => $name,
+	);
+
+	$branches{$branchid} = \%branch;
+
+	addping($MY_DYNROUTED_IP, $_,	PING_TIMEOUT_ADSL,	PING_INTERVAL_AVA,	\%branch)
+		for @$pings;
+
+	$branch{CACHEFH} = make_branch_fh(\%branch);
+}
+
+sub remove_branch
+{
+	my $branch = shift;
+
+	remove_ping($_)
+		for values %{ $branch->{PINGS} };
+
+	close $branch->{CACHEFH};
+	delete $branches{ $branch->{BRANCHID} };
+}
+
+my %pings;
+my $lastkey; BEGIN { $lastkey = 0 }
+
+sub addping
+{
+	my ($srcip, $dstip, $timeout, $interval, $branch) = @_;
+
+	# Check for key exhaustion.  This would represent 10,000 branches
+	# though, or at least 10,000 branches + reloaded branches.
+	die "Out of keys!" if keys(%pings) >= 0xFFFF;
+
+	for (;;)
+	{
+		$lastkey = ($lastkey + 1) & 0xFFFF;
+		last if not exists $pings{$lastkey};
+	}
+
+	my %ping = (
+		SRC => $srcip,
+		SRCPACK => inet_aton($srcip),
+		SRCADDR => scalar sockaddr_in(0, inet_aton($srcip)),
+		DST => $dstip,
+		DSTPACK => inet_aton($dstip),
+		DSTADDR => scalar sockaddr_in(0, inet_aton($dstip)),
+		TIMEOUT => $timeout,
+		BRANCH => $branch,
+		NEXTPINGTIME => [ gettimeofday ],
+		PINGINTERVAL => $interval,
+		ID => $lastkey,
+		SEQ => 0,
+	);
+
+	$pings{$lastkey} = \%ping;
+	$branch->{PINGS}{$ping{SRCPACK} . $ping{DSTPACK}} = \%ping;
+
+	queue_ping(\%ping);
+}
+
+sub remove_ping
+{
+	my $ping = shift;
+
+	if ($ping->{EXPIRETIME})
+	{
+		remove_expected($ping);
+	}
+
+	# This is a bit lame.  Because it's a bit hard to remove the ping from the
+	# TX queues, we don't bother.  Rather, we mark it as "to be deleted".
+	# When it pops to the front of the TX queue it will be discarded, and
+	# won't be put back on the queue as normal.
+	$ping->{DELETEME} = 1;
+
+	my $branch = $ping->{BRANCH};
+	delete $branch->{PINGS}{$ping->{SRCPACK} . $ping->{DSTPACK}};
+}
+
+{
+	my %hraTXQueues;
+	my @arhQueueOrder;
+
+	sub queue_ping
+	{
+		my $ping = shift;
+		my $int = $ping->{PINGINTERVAL};
+
+		my $raQueue = ($hraTXQueues{$int} ||= []);
+
+		if (@$raQueue)
+		{
+			push @$raQueue, $ping;
+			#assert( cmptime($ping->{NEXTPINGTIME}, $raQueue->[-1]{NEXTPINGTIME}) >= 0 );
+		} else {
+			push @$raQueue, $ping;
+			# Insert $raQueue into @arhQueueOrder
+			# FIXME this is the lazy way
+			push @arhQueueOrder, $raQueue;
+			@arhQueueOrder = sort {
+				cmptime($a->[0]{NEXTPINGTIME}, $b->[0]{NEXTPINGTIME})
+			} @arhQueueOrder;
+		}
+	}
+
+	sub next_ping_to_send
+	{
+		NEXTPING:
+		my $q = $arhQueueOrder[0]
+			or return undef;
+
+		tv_interval($q->[0]{NEXTPINGTIME}) >= 0
+			or return undef;
+
+		shift @arhQueueOrder;
+		my $ping = shift @$q;
+
+		if (@$q)
+		{
+			# Insert $q into @arhQueueOrder
+			# FIXME this is the lazy way
+			push @arhQueueOrder, $q;
+			@arhQueueOrder = sort {
+				cmptime($a->[0]{NEXTPINGTIME}, $b->[0]{NEXTPINGTIME})
+			} @arhQueueOrder;
+		}
+
+		goto NEXTPING if $ping->{DELETEME};
+		$ping;
+	}
+}
+
+sub cmptime
+{
+	$_[0][0] <=> $_[1][0]
+		or
+	$_[0][1] <=> $_[1][1]
+}
+
+sub nibble
+{
+	send_one_ping();
+	receive_all_pings();
+	do_timeouts();
+}
+
+sub send_one_ping
+{
+	my $ping = next_ping_to_send()
+		or return;
+
+	my $sock = $sockets{$ping->{SRC}} or die;
+
+	my $seq = $ping->{SEQ} = ($ping->{SEQ} + 1) & 0xFFFF;
+
+	printf "%s : send from=%s to=%s id=%04X seq=%04X\n",
+		$localtime,
+		$ping->{SRC},
+		$ping->{DST},
+		$ping->{ID},
+		$seq,
+		if DebugSendReceive;
+
+	my ($t0, $t1, $ok) = send_ping(
+		$sock->{SOCK},
+		$ping->{DSTADDR},
+		$ping->{ID},
+		$seq,
+		PAYLOAD_DATA,
+	);
+
+	if ($ping->{EXPIRETIME})
+	{
+		warn "Sending ping, cancelling expected response";
+		remove_expected($ping);
+	}
+
+	my @expire = gettimeofday;
+	$expire[0] += $ping->{TIMEOUT};
+
+	$ping->{EXPIRETIME} = \@expire;
+	$ping->{EXPECTSEQ} = $seq;
+
+	add_expected($ping);
+
+	$ping->{NEXTPINGTIME} = [gettimeofday];
+	$ping->{NEXTPINGTIME}[0] += $ping->{PINGINTERVAL};
+
+	queue_ping($ping);
+}
+
+sub send_ping
+{
+	my ($sock, $addr, $id, $seq, $data) = @_;
+
+	# ICMP type == 8, code == 0; initial checksum == 0
+	my $msg = pack("C2 n3", ICMP_ECHO_REQUEST, 0, 0, $id, $seq) . $data;
+
+	# Now calculate the correct checksum and put it in place
+	use bytes;
+	# I'm sure the correct "pack" specifier would be "n", but this is what
+	# works... maybe something to do with Net::Ping's checksum algorithm using
+	# "S" too?
+	substr($msg, 2, 2) = pack "S", checksum($msg);
+
+	# Send it!
+	my @t0 = gettimeofday;
+	my $ok = defined(send($sock, $msg, 0, $addr)); # flags == 0
+	my @t1 = gettimeofday;
+
+	(\@t0, \@t1, $ok);
+}
+
+sub checksum
+{
+	# Simple wrapper around Net::Ping::checksum, which doesn't
+	# handle odd-length messages.
+	my $msg = shift;
+	$msg .= chr(0) if length($msg) % 2;
+	use Net::Ping ();
+	Net::Ping->checksum($msg);
+}
+
+sub receive_all_pings
+{
+	for (values %sockets)
+	{
+		my ($bits, $fh, $local_ip) = @$_{qw( BITS SOCK IP )};
+
+		for (;;)
+		{
+			my $rbits = $bits;
+			select($rbits, undef, undef, 0) or last;
+
+			my $recv_msg = "";
+			my $from_saddr = recv($fh, $recv_msg, 1500, 0);
+
+			printf "rx from %s: %s\n",
+				unpack("H*", $from_saddr),
+				unpack("H*", $recv_msg),
+				if DebugOther and 0;
+
+			my @now2 = gettimeofday;
+			defined($from_saddr)
+				or warn($!), next;
+
+			my ($from_port, $from_ip) = sockaddr_in($from_saddr);
+
+			my $byte = unpack "C", $recv_msg;
+			my $offset = ($byte & 0xF) * 4;
+			my $icmp_data = unpack("\@$offset a*", $recv_msg);
+
+			printf "offset=%d icmp_data=%s\n",
+				$offset,
+				unpack("H*", $icmp_data),
+				if DebugOther and 0;
+
+			my ($type, $code, $chk, $id, $seq, $data)
+				= unpack("C2 n3 a*", $icmp_data);
+
+			printf "local=%s remote=%s type=%d code=%d chk=%04X id=%04X seq=%04X data=%s\n",
+				$local_ip,
+				inet_ntoa($from_ip),
+				$type, $code, $chk, $id, $seq,
+				unpack("H*", $data),
+				if DebugOther;
+
+			if ($type == ICMP_DESTINATION_UNREACHABLE
+				or $type == ICMP_TTL_EXCEEDED)
+			{
+				# $data is the original IP header + 64 bits (that's only 8
+				# bytes) of the ICMP data.  The eight bytes will be the ICMP
+				# pre-amble: type (8), code (0), checksum, ID and sequence.
+				# Therefore the payload WILL be missing.
+
+				my ($byte, $proto, $src, $dst) = unpack "C x8 C x2 a4 a4", $data;
+				my $offset = ($byte & 0xF) * 4;
+				my $orig_data = unpack "\@$offset a*", $data;
+
+				printf "original packet offset=%d src=%s dst=%s proto=%s data=%s\n",
+					$offset,
+					inet_ntoa($src),
+					inet_ntoa($dst),
+					$proto,
+					unpack("H*", $orig_data),
+					if DebugNegativeIcmp;
+
+				$proto == 1 or next;
+
+				my ($o_type, $o_code, $o_chk, $o_id, $o_seq) = unpack "CC n n n", $orig_data;
+
+				printf "original ICMP data type=%d code=%d chk=%04X id=%04X seq=%04X\n",
+					$o_type, $o_code, $o_chk, $o_id, $o_seq,
+					if DebugNegativeIcmp;
+
+				icmp_answer(inet_ntoa($src), inet_ntoa($dst), $o_id, $o_seq, 0, "type $type");
+			}
+
+			if ($type == ICMP_ECHO_REPLY)
+			{
+				# $id and $seq are as we sent them
+				# $data is the payload we sent out, i.e. PAYLOAD_DATA
+				$data eq PAYLOAD_DATA or next;
+
+				icmp_answer($local_ip, inet_ntoa($from_ip), $id, $seq, 1, "reply");
+			}
+		}
+	}
+}
+
+sub icmp_answer
+{
+	my ($local_ip, $remote_ip, $id, $seq, $success, $desc) = @_;
+
+	printf "%s : icmp_answer local=%s remote=%s id=%04X seq=%04X success=%s (%s)\n",
+		$localtime,
+		$local_ip, $remote_ip, $id, $seq, ($success ? "Y" : "n"),
+		$desc,
+		if DebugSendReceive;
+
+	my $ping = $pings{$id};
+	my $hexid = sprintf "%04X", $id;
+	$ping or warn("Unknown ping id $hexid"), return;
+
+	$ping->{SRC} eq $local_ip
+		or warn("Ping id $hexid source mismatch - $local_ip not $ping->{SRC}"), return;
+	$ping->{DST} eq $remote_ip
+		or warn("Ping id $hexid destination mismatch - $remote_ip not $ping->{DST}"), return;
+
+	my $expect_seq = $ping->{EXPECTSEQ};
+	defined($expect_seq)
+		or warn("Ping id $hexid wasn't expecting a response"), return;
+	$expect_seq == $seq
+		or warn("Ping id $hexid sequence mismatch - $seq not $expect_seq"), return;
+
+	remove_expected($ping);
+	delete @$ping{qw( EXPECTSEQ EXPIRETIME )};
+
+	# Invoke callback for $ping with result $success
+	ping_answer($ping, $success, $desc);
+}
+
+{
+	# (dll == double-linked list)
+	my %expected;
+	my %dlls;
+
+	sub _new_dll
+	{
+		my $head = {};
+		my $tail = { PREV => $head };
+		$head->{NEXT} = $tail;
+		[ $head, $tail ];
+	}
+
+	sub add_expected
+	{
+		my $ping = shift;
+		my $timeout = $ping->{TIMEOUT};
+
+		my $dll = ($dlls{$timeout} ||= _new_dll());
+
+		# Effectively: push @$dll, $ping
+		my $tail = $dll->[1];
+		my $last = $tail->{PREV};
+
+		@$ping{qw( PREV NEXT )} = ($last, $tail);
+		$last->{NEXT} = $tail->{PREV} = $ping;
+	}
+
+	sub remove_expected
+	{
+		my $ping = shift;
+
+		$ping->{NEXT} && $ping->{PREV}
+			or warn("Ping to remove is not part of list"), return;
+
+		my ($next, $prev) = @$ping{qw( NEXT PREV )};
+		($next->{PREV}, $prev->{NEXT}) = ($prev, $next);
+		delete @$ping{qw( NEXT PREV )};
+	}
+
+	sub get_timeouts
+	{
+		my @r;
+
+		my @now = gettimeofday;
+
+		for my $dll (values %dlls)
+		{
+			# In theory we could do some funky stuff here to remove the first
+			# /n/ items from the list, and efficiently remove them all in one
+			# go.  However, in the interests of code reuse, maintainability,
+			# error-free coding etc.etc. we're just going to call
+			# remove_expected() on each one in turn.
+
+			for (;;)
+			{
+				my $ping = $dll->[0]{NEXT};
+				my $time = $ping->{EXPIRETIME} or last;
+				cmptime($time, \@now) < 0 or last;
+
+				remove_expected($ping);
+				push @r, $ping;
+			}
+		}
+
+		@r;
+	}
+}
+
+sub do_timeouts
+{
+	for my $ping (get_timeouts())
+	{
+		printf "%s : timeout: %s %s %04X %04X\n",
+			$localtime,
+			@$ping{qw( SRC DST ID EXPECTSEQ )},
+			if DebugTimeout;
+
+		delete @$ping{qw( EXPECTSEQ EXPIRETIME )};
+
+		# Invoke callback for $ping with false result
+		ping_answer($ping, 0, "timeout");
+	}
+}
+
+sub ping_answer
+{
+	my ($ping, $success, $desc) = @_;
+
+	printf "%s : ping_answer local=%s remote=%s success=%s (%s)\n",
+		$localtime,
+		$ping->{SRC}, $ping->{DST}, $success ? "Y" : "n",
+		$desc,
+		if DebugAnswer;
+
+	# Keep track of state; change state as appropriate.
+	if ($ping->{STATE})
+	{
+		if ($success)
+		{
+			# It was up, and it still is.
+			if ($ping->{OPPOSING})
+			{
+				printf "%s : %s => %s has redeemed itself\n",
+					$localtime,
+					$ping->{SRC},
+					$ping->{DST},
+					if DebugStateChange;
+				$ping->{OPPOSING} = 0;
+			}
+		}
+		else
+		{
+			# Oh dear.  It was up, and now it's not.
+			# Wait for several negative responses in a row before going down.
+
+			my $opp = ++$ping->{OPPOSING};
+			printf "%s : Strike %d for %s => %s\n",
+				$localtime,
+				$opp,
+				$ping->{SRC},
+				$ping->{DST},
+				if DebugStateChange;
+
+			if ($ping->{OPPOSING} >= 3)
+			{
+				printf "%s : %s => %s has changed to DOWN (up %d sec)\n",
+					$localtime,
+					$ping->{SRC},
+					$ping->{DST},
+					$time - $ping->{STATETIME},
+					if DebugStateChange;
+
+				insert_ping_history($ping);
+
+				$ping->{STATE} = 0;
+				$ping->{STATETIME} = $time;
+				$ping->{OPPOSING} = 0;
+			}
+		}
+	}
+	else # STATE == false
+	{
+		if ($success)
+		{
+			# Hurrah!  It has come up.
+			printf "%s : %s => %s has changed to UP (down %d sec)\n",
+				$localtime,
+				$ping->{SRC},
+				$ping->{DST},
+				$time - $ping->{STATETIME},
+				if DebugStateChange;
+
+			insert_ping_history($ping);
+
+			$ping->{STATE} = 1;
+			$ping->{STATETIME} = $time;
+			$ping->{OPPOSING} = 0;
+		} else {
+			# It was down, and it still is.
+		}
+	}
+
+	$ping->{LASTTESTTIME} = $time;
+
+	my $branch = $ping->{BRANCH};
+	my $fh = $branch->{CACHEFH};
+	my $pos = $ping->{SEEK};
+
+	if (defined $pos)
+	{
+		sysseek($fh, $pos, 0) or die $!;
+	} else {
+		$ping->{SEEK} = sysseek($fh, 0, 2);
+	}
+
+	my $line = pack PINGCACHE_RECORD_FORMAT,
+		@$ping{ PINGCACHE_RECORD_FIELDS() };
+
+	syswrite($fh, $line) == length($line)
+		or die $!;
+}
+
+sub make_branch_fh
+{
+	my $branch = shift;
+
+	my $filename = branch_pingcache_file($branch);
+	$branch->{CACHEFILE} = $filename;
+
+	use Fcntl;
+	sysopen(my $fh, $filename, O_CREAT|O_RDWR)
+		or die $!;
+	binmode $fh;
+
+	{ my $o = select $fh; $| = 1; select $o };
+
+	my $reclen = PINGCACHE_RECORD_LENGTH;
+
+	die "Size is not a multiple of $reclen bytes!"
+		if -s($fh) % $reclen;
+
+	for (values %{ $branch->{PINGS} })
+	{
+		$_->{STATE} = 0;
+		$_->{STATETIME} = time;
+		$_->{LASTTESTTIME} = time;
+		$_->{OPPOSING} = 0;
+	}
+
+	if (-s $fh)
+	{
+		defined(sysseek($fh, 0, 0)) or die $!;
+
+		while (1)
+		{
+			my $r = sysread($fh, my $line, $reclen);
+			defined($r) or die $!;
+			$r or last;
+			$r == $reclen or warn("Asked for $reclen bytes, got $r (from $filename)"), last;
+
+			my %t;
+			@t{ PINGCACHE_RECORD_FIELDS() }
+				= unpack PINGCACHE_RECORD_FORMAT, $line;
+
+			printf "%s : Loaded %-16.16s => %-16.16s : state=%-4.4s, statetime=%s UTC, lasttesttime=%s UTC\n",
+				scalar localtime,
+				inet_ntoa($t{SRCPACK}), inet_ntoa($t{DSTPACK}),
+				($t{STATE} ? "up" : "down"),
+				scalar(gmtime $t{STATETIME}),
+				scalar(gmtime $t{LASTTESTTIME}),
+				if DebugCacheLoad;
+
+			if (time - $t{LASTTESTTIME} > PINGCACHE_EXPIRE_TIME)
+			{
+				# This pingcache record has expired.
+
+				printf "%s : cached answer for %s => %s has expired\n",
+					scalar localtime,
+					inet_ntoa($t{SRCPACK}), inet_ntoa($t{DSTPACK}),
+					if DebugCacheExpiry;
+
+				insert_ping_history(\%t);
+				next;
+			}
+
+			my $ping = $branch->{PINGS}{$t{SRCPACK} . $t{DSTPACK}};
+
+			if (not $ping)
+			{
+				# This pingcache record is obsolete.
+
+				printf "%s : cached answer for %s => %s is obsolete - expiring\n",
+					scalar localtime,
+					inet_ntoa($t{SRCPACK}), inet_ntoa($t{DSTPACK}),
+					if DebugCacheExpiry;
+
+				insert_ping_history(\%t);
+				next;
+			}
+			
+			@$ping{ keys %t } = values %t;
+			$ping->{OPPOSING} = 0;
+		}
+
+		defined(sysseek $fh, 0, 0) or die $!;
+		truncate $fh, 0 or die $!;
+	}
+
+	for my $ping (values %{ $branch->{PINGS} })
+	{
+		$ping->{SEEK} = sysseek($fh, 0, 1);
+
+		my $line = pack PINGCACHE_RECORD_FORMAT,
+			@$ping{ PINGCACHE_RECORD_FIELDS() };
+
+		syswrite($fh, $line) == $reclen or die $!;
+	}
+
+	$branch->{CACHEFH} = $fh;
+}
+
+sub insert_ping_history
+{
+	return;
+	my $pingcache = shift;
+
+	my @args = (
+		inet_ntoa($pingcache->{SRCPACK}),
+		inet_ntoa($pingcache->{DSTPACK}),
+		$pingcache->{STATE} ? "t" : "f",
+		dbtime($pingcache->{STATETIME}),
+		dbtime($pingcache->{LASTTESTTIME}),
+	);
+
+	printf "%s : Inserting pingstatushistory record: %s\n",
+		scalar localtime,
+		join("; ", @args),
+		if DebugHistory;
+
+	$db->iExecute(
+		"INSERT INTO pingstatushistory (src, dst, state, starttime, stoptime)
+			VALUES (?, ?, ?, ?, ?)",
+		@args,
+	);
+	$db->dbh->commit;
+}
+
+sub dbtime
+{
+	my @g = gmtime shift;
+	sprintf "%04d-%02d-%02d %02d:%02d:%02d+00",
+		$g[5]+1900, $g[4]+1, @g[3,2,1,0];
+}
+
+sub remove_unused_pingcache_files
+{
+	my %known_files;
+	$known_files{ $_->{CACHEFILE} } = $_
+		for values %branches;
+
+	for my $file (all_pingcache_files())
+	{
+		next if $known_files{$file};
+
+		printf "%s : cache file '%s' is obsolete - expiring all its pings\n",
+			scalar localtime,
+			$file,
+			if DebugCacheExpiry;
+
+		# Read all the records from the file.  Expire each one in the
+		# database.
+
+		sysopen(my $fh, $file, O_RDONLY) or die $!;
+		binmode $fh;
+
+		while (1)
+		{
+			my $r = sysread($fh, my $line, PINGCACHE_RECORD_LENGTH);
+			defined($r) or die $!;
+			$r or last;
+			$r == PINGCACHE_RECORD_LENGTH or die "Only read $r bytes from $file";
+
+			my %t;
+			@t{ PINGCACHE_RECORD_FIELDS() }
+				= unpack PINGCACHE_RECORD_FORMAT, $line;
+
+			insert_ping_history(\%t);
+		}
+
+		close $fh;
+
+		unlink $file or die $!;
+	}
+}
+
+sub branch_pingcache_file
+{
+	my $branch = shift;
+	"pingcache-$branch->{BRANCHID}";
+}
+
+sub all_pingcache_files
+{
+	glob "pingcache-*";
+}
+
+sub vReReadBranches
+{
+	return;
+	printf "%s : Re-reading branch information\n", scalar localtime;
+
+	my %new = map { $_->id => $_ }
+		grep { $_->fIsLive }
+		TP::Branch->All;
+
+	# Look for added branches
+	while (my ($id, $b) = each %new)
+	{
+		next if $branches{$id};
+
+		printf "%s : Starting to ping %s %s\n",
+			scalar localtime,
+			$b->branchcode, $b->name,
+			;
+
+		addbranch(
+			$b->id,
+			$b->adsl_dynamic_ip,
+			$b->adsl_static_ip,
+			$b->resiliency_ip,
+			$b->test_workstation_ip,
+			$b->secondary_type,
+			$b->branchcode,
+			$b->name,
+		);
+	}
+
+	# Look for removed branches
+	while (my ($id, $branch) = each %branches)
+	{
+		next if $new{$id};
+
+		printf "%s : No longer pinging %s %s\n",
+			scalar localtime,
+			$branch->{BRANCHCODE}, $branch->{BRANCHNAME},
+			;
+
+		remove_branch($branch);
+	}
+
+	printf "%s : Continuing - now pinging %d branches\n",
+		scalar localtime,
+		scalar keys %branches,
+		;
+}
+
+# eof Pinger2

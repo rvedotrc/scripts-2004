@@ -1,0 +1,226 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+my $Id = '$Id: cvsadd,v 1.1 2004/10/06 11:54:31 rachel Exp $';
+my $Revision = '$Revision: 1.1 $';
+
+use strict;
+use constant TMPFILE => "$ENV{HOME}/.cvsadd-tmp";
+my $sEditor = $ENV{EDITOR} || 'vi';
+
+use File::Find;
+
+print("Nothing to do.\n"), exit unless @ARGV;
+my %hTextFiles;
+my %hBinaryFiles;
+my %hDirectories;
+
+my ($iDirsAdded, $iTextFilesAdded, $iBinaryFilesAdded) = (0, 0, 0);
+
+for (@ARGV)
+{
+	cvsadd($_);
+}
+
+sub cvsadd
+{
+	my $sWhat = shift;
+
+	if ($sWhat =~ m[/CVS(?:/|$)])
+	{
+		warn "Found 'CVS' in argument passed to 'cvsadd' - ignoring.\n";
+		return;
+	}
+
+	if (-f $sWhat)
+	{
+		-T($sWhat) ? ++$hTextFiles{$sWhat} : ++$hBinaryFiles{$sWhat};
+		return;
+	}
+
+	if ($sWhat =~ m[(^|/)\.\.?($|/)])
+	{
+		warn "Can't process $sWhat because it contains '.' or '..'\n";
+		warn "Try just 'cvsadd DIRNAME' for example\n";
+		return;
+	}
+
+	# Okay, it's a directory.  Check there's a CVS directory near here.
+
+	unless (-d "$sWhat/../CVS")
+	{
+		warn("No 'CVS' directory above $sWhat - can't process this.\n");
+		warn("Perhaps you should start with 'cvs checkout -l .' in the directory above $sWhat ?\n");
+		return;
+	}
+
+	# Scan down for other directories, and if any contain 'CVS', then 'prune'
+	# the scan at that point.
+
+	File::Find::find(
+		sub
+		{
+			$File::Find::prune=1, return if -l;
+			return unless -d;
+
+			if ($_ eq "CVS")
+			{
+				warn "Unexpectedly found $File::Find::name in 'cvsadd'\n";
+				$File::Find::prune=1;
+				return;
+			}
+
+			if (-d "$_/CVS")
+			{
+				warn "Won't scan $File::Find::name because 'CVS' directory found there\n";
+				$File::Find::prune=1;
+				return;
+			}
+
+			++$hDirectories{$File::Find::name};
+		},
+		$sWhat,
+	);
+}
+
+if (%hDirectories)
+{
+	my @asDirs = asFilterListInEditor(
+		<<EOF,
+# These directories will be added to CVS.
+
+# If a directory in this list contains *nothing* which should go into CVS
+# (including the directories below it), you should remove it from this list.
+
+# You will get a chance later to exclude individual files from these
+# directories.
+EOF
+		asSortFilenames(keys %hDirectories),
+	);
+
+	for (asSortFilenames(@asDirs))
+	{
+		my $r = system "cvs add $_ | grep -v '^?'";
+		exit $r>>8 if $r;
+		++$iDirsAdded;
+
+		opendir(D, $_) or die $!;
+		for my $sFile (readdir D)
+		{
+			cvsadd("$_/$sFile") if -f "$_/$sFile";
+		}
+		closedir D;
+	}
+}
+
+if (%hTextFiles)
+{
+	my @asFiles = asFilterListInEditor(
+		<<EOF,
+# These files will be added as 'text' files, i.e. CVS may alter their
+# content by expanding '\$foo\$' keywords.
+
+# Delete the lines for any files you don't want added to CVS.
+# (You can add lines for extra files too, if you wish).
+EOF
+		asSortFilenames(keys %hTextFiles),
+	);
+
+	if (@asFiles)
+	{
+		my $r = system "cvs add " . join " ", @asFiles;
+		exit $r>>8 if $r;
+		$iTextFilesAdded += @asFiles;
+	}
+}
+
+if (%hBinaryFiles)
+{
+	my @asFiles = asFilterListInEditor(
+		<<EOF,
+# These files will be added as 'binary' files, i.e. CVS will NOT
+# perform any expansion of '\$foo\$' keywords.
+
+# Delete the lines for any files you don't want added to CVS.
+# (You can add lines for extra files too, if you wish).
+EOF
+		asSortFilenames(keys %hBinaryFiles),
+	);
+
+	if (@asFiles)
+	{
+		my $r = system "cvs add " . join " ", @asFiles;
+		exit $r>>8 if $r;
+		$iBinaryFilesAdded += @asFiles;
+	}
+}
+
+print <<EOF;
+
+cvsadd completed: added $iDirsAdded dir(s), $iTextFilesAdded text file(s), and $iBinaryFilesAdded binary file(s).
+
+You should now check the results with 'cvsstat' before finalising with 'cvs commit'.
+EOF
+
+sub asFilterListInEditor
+{
+	my $sComments = shift;
+	return @_ unless -t STDIN;
+
+	my $sEditor = $ENV{EDITOR} || 'vi';
+
+	open TMP, ">" . TMPFILE or die $!;
+	print TMP $sComments, "\n";
+
+	for (@_)
+	{
+		print TMP $_, "\n";
+	}
+
+	close TMP;
+
+	my $iOldMtime = (stat TMPFILE)[9];
+EDIT:
+	my $r = system $sEditor, TMPFILE;
+	exit $r>>8 if $r;
+	my $iNewMtime = (stat TMPFILE)[9];
+
+	if ($iOldMtime == $iNewMtime)
+	{
+		print "File unchanged.\n";
+		print "a)bort c)ontinue e)dit\n";
+		for (;;)
+		{
+			print "Action: (continue) ";
+			chomp(my $ans = <STDIN>);
+			$ans = 'c' if $ans eq "";
+			next unless $ans =~ /\A[ace]\z/i;
+			goto EDIT if lc($ans) eq "e";
+			warn("cvsadd: this step aborted by user\n"), return if lc ($ans) eq "a";
+			last;
+		}
+	}
+
+	my @asOut;
+	open TMP, "<" . TMPFILE or die $!;
+	while (<TMP>)
+	{
+		next if /\A\s*#/ or not /\S/;
+		chomp;
+		push @asOut, $_;
+	}
+	close TMP;
+	unlink TMPFILE or warn "unlink temp file: $!\n";
+
+	@asOut;
+}
+
+sub asSortFilenames
+{
+	map { $_->[0] }
+	sort { $a->[1] cmp $b->[1] }
+	map { my $o = $_; tr[/][\x00]; [ $o, $_ ] }
+	@_
+}
+
+# eof cvsadd

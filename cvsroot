@@ -1,0 +1,297 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+# cvsroot, by Rachel Evans for Power Internet <rachel.evans@power.net.uk>
+# $Id: cvsroot,v 1.1 2004/10/06 11:54:31 rachel Exp $
+
+# TODO: exit with a sensible, meaningful exit status
+
+use strict;
+
+my ($fCheck, $sSet, $fVerbose, $fFollow, $fAll);
+
+use Getopt::Long;
+
+GetOptions(
+	"check|c"		=> \$fCheck,
+	"set|s=s"		=> \$sSet,
+	"help|h"		=> \&vHelpAndExit,
+	"verbose!"		=> \$fVerbose,
+	"v"				=> \$fVerbose,
+	"follow!"		=> \$fFollow,
+	"f"				=> \$fFollow,
+	"all|a"			=> \$fAll,
+);
+
+@ARGV = "." unless @ARGV;
+
+vHelpAndExit() unless $fCheck xor (defined $sSet);
+vHelpAndExit() if $fAll and not $fCheck;
+
+sub vHelpAndExit
+{
+	print <<EOF;
+Usage: cvsroot [OPTION]... [dir...]
+Check or set CVS/Root settings for a directory tree.
+
+    -v, --verbose        verbosely describe what's going on
+    -h, --help           shows this help
+    -f, --[no]follow     [don't] follow symbolic links
+    -c, --check          check CVS/Root settings (don't change anything)
+    -s, --set CVSROOT    set CVS/Root to CVSROOT (don't check anything)
+    -a, --all            with --check, also warn about transitions between
+                         some "set" value and "unset" (normally these are
+                         ignored)
+
+--check and --set CVSROOT are mutually exclusive.  Exactly one must be
+specified.
+
+In "--check" mode, cvsroot scans down the nominated directories (default: the
+current directory) and checks the CVS/Root and CVS/Repository files in each.
+In a normal, consistent set-up, the CVS/Root should be the same all the way
+down a directory tree, and CVS/Repository should change to reflect the
+directory structure as it goes.  An example should help to illustrate this:
+
+    MYPROJECT
+        MYPROJECT/CVS/Root       contains "/var/cvs"
+        MYPROJECT/CVS/Repository contains "MYPROJECT"
+
+Then in the subdirectory "MYPROJECT/bin", you would expect this:
+
+    MYPROJECT
+        MYPROJECT/bin
+            MYPROJECT/CVS/Root       should contain "/var/cvs"
+            MYPROJECT/CVS/Repository should contain "MYPROJECT/bin"
+
+"cvsroot --check" thus scans down directory trees, reading CVS/Root and
+CVS/Repository as it goes, and warns when the values found are not what was
+expected (compared to the directory above).
+
+In "--set" mode, cvsroot writes a new value into CVS/Root all the way down a
+directory tree.  It only ever changes existing CVS/Root files; it never
+creates new ones.
+
+Examples:
+
+	# Check from this point downwards, ignoring missing files:
+	cvsroot --check
+
+	# Check directories "foo" and "bar", also warning when we enter or leave
+	# directories with CVS control structures:
+	cvsroot --check --all foo bar
+
+	# Verbosely check this directory, and follow symbolic links:
+	cvsroot --check --verbose --follow
+
+	# Set CVS/Root for this directory tree to /path/to/repository:
+	cvsroot --set /path/to/repository
+
+	# Verbosely set CVS/Root for directories "bin" and "lib" to the current
+	# value of \$CVSROOT (you must give \$CVSROOT the right value first):
+	cvsroot --set \$CVSROOT --verbose bin lib
+
+EOF
+	exit 1;
+}
+
+if ($fCheck)
+{
+	my $rv = 0;
+
+	for (@ARGV)
+	{
+		fCheck($_) or $rv = 1;
+	}
+
+	exit $rv;
+}
+
+if ($sSet)
+{
+	my $rv = 0;
+
+	fSet($_, $sSet) or $rv = 1
+		for @ARGV;
+	
+	exit $rv;
+}
+
+# Huh?
+exit 2;
+
+################################################################################
+# "--check" mode
+################################################################################
+
+sub fCheck
+{
+	my ($sDir) = @_;
+
+	my $sRoot = sReadCVSRoot($sDir);
+	my $sRepos = sReadCVSRepos($sDir);
+
+	printf "CVSROOT for %s is %s\n", $sDir, sShowCVSRoot($sRoot)
+		if $fVerbose;
+	printf "Repository for %s is %s\n", $sDir, sShowCVSRoot($sRepos)
+		if $fVerbose;
+
+	return fCheck2($sDir, $sRoot, $sRepos);
+}
+
+sub fCheck2
+{
+	my ($sDir, $sRoot, $sRepos) = @_;
+
+	unless (opendir(D, $sDir))
+	{
+		print STDERR "opendir $sDir: $!\n";
+		return 2;
+	}
+
+	my @e = sort readdir D;
+	closedir D;
+
+	for my $n (@e)
+	{
+		next if $n =~ /\A(?:\.|\.\.|CVS)\z/;
+
+		my $sLink = readlink "$sDir/$n";
+		-d "$sDir/$n" or next;
+
+		if (defined $sLink)
+		{
+			unless ($fFollow)
+			{
+				print "Not following symbolic link '$sDir/$n' to '$sLink'\n"
+					if $fVerbose;
+				next;
+			}
+
+			print "Following symbolic link '$sDir/$n' to '$sLink'\n"
+				if $fVerbose;
+		}
+
+		my $sNextDir = defined($sLink) ? $sLink : "$sDir/$n";
+		my $sNextRoot = eval { sReadCVSRoot($sNextDir) };
+
+		if ($@)
+		{
+			print STDERR $@;
+		} else {
+			if (($sNextRoot||"") ne ($sRoot||""))
+			{
+				printf STDERR "CVSROOT in %s is %s, not %s\n",
+					$sNextDir, sShowCVSRoot($sNextRoot), sShowCVSRoot($sRoot)
+						if ($sNextRoot and $sRoot) or $fAll;
+			}
+		}
+
+		my $sExpected = ($sRepos ? "$sRepos/$n" : undef);
+		my $sNextRepos = eval { sReadCVSRepos($sNextDir) };
+
+		if ($@)
+		{
+			print STDERR $@;
+		} else {
+			if (($sNextRepos||"") ne ($sExpected||""))
+			{
+				printf STDERR "Repository in %s is %s, not %s\n",
+					$sNextDir, sShowCVSRoot($sNextRepos), sShowCVSRoot($sExpected)
+						if ($sNextRepos and $sExpected) or $fAll;
+			}
+		}
+
+		fCheck2($sNextDir, $sNextRoot, $sNextRepos);
+	}
+
+	1;
+}
+
+sub sReadCVSRoot { sReadCVSFile(shift(), "CVS/Root") }
+sub sReadCVSRepos { sReadCVSFile(shift(), "CVS/Repository") }
+
+sub sReadCVSFile
+{
+	my ($sDir, $sFile) = @_;
+
+	if (open(CVSROOT, "$sDir/$sFile"))
+	{
+		my $l = <CVSROOT>;
+		defined($l) or die "Invalid CVS file: $sDir/$sFile\n";
+		defined(<CVSROOT>) and die "Invalid CVS file: $sDir/$sFile\n";
+		close CVSROOT;
+		chomp $l;
+		return $l;
+	}
+
+	use Errno 'ENOENT';
+	return undef if $! == ENOENT;
+
+	die "open $sDir/$sFile: $!\n";
+}
+
+sub sShowCVSRoot
+{
+	my $t = shift;
+	defined($t) ? $t : "'unset'";
+}
+
+################################################################################
+# "--set" mode
+################################################################################
+
+sub fSet
+{
+	my ($sDir, $sRoot) = @_;
+
+	use IO::File;
+	my $fh = IO::File->new("$sDir/CVS/Root", O_WRONLY|O_TRUNC);
+
+	if ($fh)
+	{
+		print "$sDir/CVS/Root\n" if $fVerbose;
+		print $fh "$sRoot\n";
+		truncate($fh, tell($fh));
+		close $fh;
+	} elsif ($! == ENOENT) {
+		print "$sDir/CVS/Root does not exist, not creating it\n" if $fVerbose;
+	} else {
+		print STDERR "open $sDir/CVS/Root: $!\n";
+	}
+
+	unless (opendir(D, $sDir))
+	{
+		print STDERR "opendir $sDir: $!\n";
+		return 2;
+	}
+
+	my @e = sort readdir D;
+	closedir D;
+
+	for my $n (@e)
+	{
+		next if $n =~ /\A(?:\.|\.\.|CVS)\z/;
+
+		my $sLink = readlink "$sDir/$n";
+		-d "$sDir/$n" or next;
+
+		if (defined $sLink)
+		{
+			unless ($fFollow)
+			{
+				print "Not following symbolic link '$sDir/$n' to '$sLink'\n"
+					if $fVerbose;
+				next;
+			}
+
+			print "Following symbolic link '$sDir/$n' to '$sLink'\n"
+				if $fVerbose;
+		}
+
+		fSet("$sDir/$n", $sRoot);
+	}
+
+	1;
+}
+
+# eof cvsroot

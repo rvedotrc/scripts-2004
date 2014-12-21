@@ -1,0 +1,92 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use lib "/usr/lib/perl5/site_perl/5.8.0";
+
+use strict;
+use MP3::Tag;
+
+@ARGV = "." unless @ARGV;
+@ARGV = map { -d $_ ? walk($_) : $_ } @ARGV;
+
+sub walk
+{
+	my @files;
+	use File::Find qw( find );
+	my $sub = sub {
+		push @files, $_
+			if /\.mp3$/i and -f $_;
+	};
+	find({ wanted => $sub, follow => 1, no_chdir => 1 }, shift);
+	@files;
+}
+
+for my $file (@ARGV)
+{
+	my $mp3 = MP3::Tag->new($file);
+	$mp3->get_tags;
+
+	my ($song, $track, $artist, $album) = $mp3->autoinfo();
+	{no warnings 'uninitialized';
+	print "$file (s=$song t=$track ar=$artist al=$album)\n" unless $song and $artist;
+	}
+	next;
+
+	if (my $id3v1 = $mp3->{ID3v1})
+	{
+		my $changed = 0;
+
+		for my $method (qw( comment year genre ))
+		{
+			$id3v1->$method(" "), ++$changed
+				if $id3v1->$method =~ /\S/;
+		}
+
+		for my $method (qw( song artist album ))
+		{
+			my $value = $id3v1->$method;
+			$value =~ s/\s+$// or next;
+			$id3v1->$method($value), ++$changed;
+		}
+
+		if ($changed)
+		{
+			print "Updating $file\n";
+			$id3v1->write_tag;
+		}
+	}
+
+	if (my $id3v2 = $mp3->{ID3v2})
+	{
+		my $changed = 0;
+
+		my ($info, $name) = $id3v2->get_frame("APIC");
+
+		if (defined $info and 0)
+		{
+			if (my $data = $info->{'_Data'})
+			{
+				my $f = $file;
+				$f =~ s/\W//g;
+				open(DATA, ">/tmp/pic-$f.jpg") or die $!;
+				binmode DATA;
+				print DATA $info->{'_Data'};
+				close DATA;
+				print "Created /tmp/pic-$f.jpg\n";
+			}
+		}
+
+		for my $frame (qw( APIC COMM MCDI TYER TSIZ TCON UFID ))
+		{
+			++$changed if $id3v2->remove_frame($frame);
+		}
+
+		if ($changed)
+		{
+			print "Updating $file\n";
+			$id3v2->write_tag;
+		}
+	}
+}
+
+# eof id3wipe

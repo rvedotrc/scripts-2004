@@ -1,0 +1,106 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+my $dest = "$ENV{HOME}/var/pictures/camera";
+chdir $dest or die $!;
+
+my $statefile = "./.state";
+my %state;
+
+if (open(my $fh, "<", $statefile))
+{
+	while (<$fh>)
+	{
+		chomp;
+		my %h = map { split /=/, $_, 2 } split ' ';
+		$h{notfound} = 1;
+		$state{$h{file}} = \%h;
+	}
+} elsif ($!{ENOENT}) {
+	;
+} else {
+	die $!;
+}
+
+my $find = sub {
+	-f or return;
+	return if $_ eq $statefile;
+
+	my $file = $_;
+	my $getdigest = sub {
+		print $_, "\n";
+		use Digest::SHA1;
+		my $ctx = Digest::SHA1->new;
+		open(my $fh, "<", $file) or die;
+		binmode $fh;
+		$ctx->addfile($fh);
+		$ctx->hexdigest;
+	};
+
+	if (my $exist = $state{$_})
+	{
+		delete $exist->{notfound};
+
+		if (-s(_) == $exist->{size}
+			and (stat _)[9] == $exist->{mtime})
+		{
+			# assume digest is OK
+		} else {
+			warn "mismatch for $_ - rereading\n";
+			$exist->{size} = -s _;
+			$exist->{mtime} = (stat _)[9];
+			$exist->{sha1} = &$getdigest();
+		}
+	} else {
+		my %h = (
+			file	=> $_,
+			size	=> -s _,
+			mtime	=> (stat _)[9],
+			sha1	=> &$getdigest(),
+		);
+		$state{$_} = \%h;
+	}
+};
+
+use File::Find;
+find({ wanted => $find, no_chdir => 1 }, ".");
+
+delete $state{ $_->{file} }
+	for grep { $_->{notfound} } values %state;
+
+my %dup;
+for my $file (values %state)
+{
+	my $key = $file->{sha1}."-".$file->{size};
+	push @{ $dup{$key} }, $file;
+}
+
+for my $dups (values %dup)
+{
+	@$dups > 1 or next;
+	my @files = sort map { $_->{file} } @$dups;
+	shift @files;
+	unlink @files;
+}
+
+{
+	open(my $fh, ">", $statefile.".new") or die $!;
+
+	local $\ = "\n";
+	local $, = " ";
+	for my $row (values %state)
+	{
+		print $fh map { "$_=$row->{$_}" } keys %$row;
+	}
+
+	close $fh or die $!;
+}
+
+rename $statefile.".new" => $statefile
+	or die $!;
+
+system "rmdir -v * 2>/dev/null";
+
+# eof RemoveCameraDuplicates

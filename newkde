@@ -1,0 +1,12 @@
+#!/bin/sh
+
+export QTDIR=~/kde3.1
+export KDEDIRS=~/kde3.1
+export KDEHOME=~/.kde31
+
+export LD_LIBRARY_PATH=~/kde3.1/lib
+export PATH=~/kde3.1/bin:$PATH
+
+startx ~/kde3.1/bin/startkde
+
+# eof

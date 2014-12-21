@@ -1,0 +1,181 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+use Time::ParseDate qw( parsedate );
+use Term::ReadLine;
+
+my $radiodata = do "$ENV{HOME}/.radiolist";
+
+use Getopt::Long;
+GetOptions(
+	"print"	=> sub { Print() },
+	"find-changes"	=> sub { FindChanges() },
+	"find-overlaps"	=> sub { FindOverlaps() },
+	"find-duplicates"	=> sub { FindDuplicates() },
+) or exit 2;
+@ARGV and die;
+
+sub Print
+{
+	for (@$radiodata)
+	{
+		show($_);
+	}
+}
+
+sub show
+{
+	local $_ = shift;
+		printf "%s - %s (%d/%d) ; %s (%s); %d of %d\n",
+			fmttime($_->{rec_start}),
+			fmttime($_->{rec_stop}),
+			$_->{id_start},
+			$_->{id_stop},
+			$_->{name},
+			$_->{station},
+			$_->{rep_seq},
+			$_->{rep_tot},
+			;
+}
+
+sub FindChanges
+{
+	my %by_times;
+	$by_times{ $_->{rec_start}."-".$_->{rec_stop} } = $_
+		for @$radiodata;
+	
+	my @c;
+	for (@$radiodata)
+	{
+		my $start = $_->{rec_start} + 86400*7;
+		my $stop = $_->{rec_stop} + 86400*7;
+		next if $by_times{ "$start-$stop" };
+		push @c, $_;
+	}
+	
+	show($_) for sort { $a->{rec_start} <=> $b->{rec_start} } @c;
+}
+
+sub FindOverlaps
+{
+	my @r = sort { $a->{rec_start} <=> $b->{rec_start} } @$radiodata;
+
+	my $l = shift @r;
+	for (@r)
+	{
+		my $n = shift @r;
+
+		unless ($n->{rec_start} > $l->{rec_stop})
+		{
+			show($l);
+			show($n);
+			print "\n";
+		}
+
+		$l = $n;
+	}
+}
+
+sub FindDuplicates
+{
+	my %r;
+	push @{ $r{ "$_->{rec_start}-$_->{rec_stop}"} }, $_
+		for @$radiodata;
+
+	for my $key (sort keys %r)
+	{
+		my $l = $r{$key};
+		@$l > 1 or next;
+
+		print("$_) "), show($l->[$_-1]) for 1..@$l;
+		print "\n";
+
+		my $def = join " ", 2..@$l;
+		my $remove = get_input("Remove which [$def]: ", sub { /^([\s\d]*)$/ });
+		$remove = $def unless $remove =~ /\S/;
+
+		for ($remove =~ /(\d+)/g)
+		{
+			$_>=1 and $_<=@$l
+				or next;
+			my $e = $l->[$_-1];
+			print "Will remove $_) ";
+			show($e);
+			remove($e);
+		}
+
+		print "\n";
+	}
+
+	save_radiodata($radiodata);
+}
+
+sub remove
+{
+	my $e = shift;
+
+	my @new = grep { $_ != $e } @$radiodata;
+	@new == @$radiodata-1
+		or warn("Can't remove non-existent entry"), return;
+	$radiodata = \@new;
+
+	for ($e->{'id_start'}, $e->{'id_stop'})
+	{
+		print "Removing at-job #$_\n";
+		system "atrm $_";
+		next if $? == 0;
+		# Is it in the atq?
+		my $exists = grep { /^$_\s/ } `atq`;
+		warn "Failed to remove at-job #$_\n" if $exists;
+	}
+}
+
+sub fmttime
+{
+	use POSIX 'strftime';
+	strftime('%Y%m%d-%H%M%S', localtime shift);
+}
+
+################################################################################
+
+my $term;
+sub initterm
+{
+  use Term::ReadLine;
+  $term = new Term::ReadLine $0;
+  my $OUT = $term->OUT || \*STDOUT;
+  select $OUT;
+}
+
+sub get_input
+{
+	my ($prompt, $checksub) = @_;
+
+	initterm() unless $term;
+
+	local $_;
+	for (;;)
+	{
+		$_ = $term->readline($prompt);
+		defined() or die "EOF\n";
+		$term->addhistory($_) if /\S/;
+		last if not $checksub or &$checksub();
+	}
+
+	$_;
+}
+
+sub save_radiodata
+{
+	my $radiodata = shift;
+	my $radiofile = "$ENV{HOME}/.radiolist";
+	open(my $radiofh, ">$radiofile.new") or die $!;
+	use Data::Dumper;
+	print $radiofh Data::Dumper->Dump([ $radiodata ],[ 'radiodata' ]) or die;
+	close $radiofh or die;
+	rename "$radiofile.new", $radiofile;
+}
+
+# eof RadioList

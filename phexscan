@@ -1,0 +1,42 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+use Digest::SHA1 qw( sha1 );
+
+my @alphabet = ("A".."Z", "2".."7");
+
+sub sha1_bin_to_phex
+{
+	my $bin = shift;
+
+	my $bits = unpack "B*", $bin;
+	my @b = $bits =~ /(.....)/g;
+	@b = map { unpack "C", pack "b*", scalar reverse $_ } @b;
+
+	join "", @alphabet[@b];
+}
+
+for my $file (@ARGV)
+{
+	open(my $fh, "<", $file) or warn("open $file: $!\n"), next;
+	my $data = do { local $/; <$fh> };
+	my $bin = sha1($data);
+	my $phexsum = sha1_bin_to_phex($bin);
+
+	my $mtime = (stat $fh)[9];
+	print <<EOF;
+<SF>
+<FID>$file</FID>
+<SHA1>$phexsum</SHA1>
+<LM>$mtime</LM>
+<HC>0</HC>
+<UC>0</UC>
+</SF>
+EOF
+
+	#
+}
+
+# eof sha1sum

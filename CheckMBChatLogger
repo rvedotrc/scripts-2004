@@ -1,0 +1,71 @@
+#!/usr/bin/perl
+# vi: set ts=4 sw=4 :
+
+use warnings;
+use strict;
+
+use Net::IRC;
+
+select STDERR; $| = 1;
+select STDOUT; $| = 1;
+
+my $server = "irc.freenode.net";
+my $checknick = "MBChatLogger";
+my $mynick = "IsIRCUserOnline.$$";
+my $checkchannel = "#musicbrainz";
+
+my $irc = Net::IRC->new;
+my $conn = $irc->newconn(
+	Nick    => $mynick,
+	Server  => $server,
+	Ircname => $mynick,
+);
+
+$conn->add_handler(
+	"endofmotd",
+	sub {
+		$conn->whois($checknick);
+	},
+);
+
+$conn->add_handler(
+	"nosuchnick",
+	sub {
+		print STDERR "$checknick is not online\n";
+		exit 1;
+	},
+);
+
+$conn->add_handler(
+	"whoischannels",
+	sub {
+		my ($self, $event) = @_;
+
+		# I'm not sure if multiple channels are represented by multiple args,
+		# or by multiple channel names in a single arg, or both.
+		# Since at the moment we're only checking a single nick and a single
+		# channel, we can quit as soon as we see the one we're checking for.
+		# If we get as far as endofwhois, they're not in the required channel.
+		my @args = $event->args;
+		splice(@args, 0, 2); # remove mynick and checknick
+		my $channels = join " ", @args;
+
+		if ($channels =~ /$checkchannel\b/)
+		{
+			print STDOUT "$checknick is online in $checkchannel\n";
+			exit 0;
+		}
+	},
+);
+
+$conn->add_handler(
+	"endofwhois",
+	sub {
+		print STDERR "$checknick is online but not in $checkchannel\n";
+		exit 2;
+	},
+);
+
+$irc->start;
+
+# eof CheckMBChatLogger

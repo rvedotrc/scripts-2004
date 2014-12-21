@@ -1,0 +1,160 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+use Getopt::Long;
+
+my ($sSender, $sRecipient);
+
+GetOptions(
+	"sender|spammer|from|s=s"	=> \$sSender,
+	"recipient|to|r=s"			=> \$sRecipient,
+);
+
+use Mail::Internet;
+my $msg = Mail::Internet->new([<>]);
+
+my $sFor = ($sRecipient || sGetFor($msg));
+warn "This message was for '$sFor'\n";
+
+$sSender ||= sGetFrom($msg);
+warn "This message was from '$sSender'\n";
+
+my $sTime = gmtime() . " UTC";
+my $sThisMTA = "zim.musicbrainz.org";
+my $sNextMTA = "localhost";
+
+require MIME::Entity;
+my $bounce = MIME::Entity->build(
+	From	=> "Mail Delivery Subsystem <>",
+	To		=> $sSender,
+	Type	=> "multipart/report; report-type=delivery-status",
+	Subject	=> "Returned mail: see transcript for details",
+	Date	=> $sTime,
+);
+
+$bounce->head->replace("Auto-Submitted", "auto-generated (failure)");
+
+$bounce->attach(
+	Data	=> <<EOF,
+
+The original message was received at $sTime
+from root\@localhost
+
+   ----- The following addresses had permanent fatal errors -----
+$sFor
+    (reason: 550 <$sFor>... User unknown)
+
+   ----- Transcript of session follows -----
+... while talking to $sNextMTA.:
+>>> RCPT To:<$sFor>
+<<< 550 <$sFor>... User unknown
+550 5.1.1 $sFor... User unknown
+
+EOF
+);
+
+$bounce->attach(
+	Type	=> "message/delivery-status",
+	Data	=> <<EOF,
+Reporting-MTA: dns; $sThisMTA
+Arrival-Date: $sTime
+
+Final-Recipient: RFC822; $sFor
+Action: failed
+Status: 5.1.1
+Remote-MTA: DNS; $sNextMTA
+Diagnostic-Code: SMTP; 550 <$sFor>... User unknown
+Last-Attempt-Date: $sTime
+EOF
+);
+
+$bounce->attach(
+	Type	=> "message/rfc822",
+	Data	=> $msg->as_string,
+);
+
+$| = 1;
+
+if (-t STDIN)
+{
+	print "Mail bounce from $sFor to $sSender and to test address? [n] ";
+	my $ans = scalar <STDIN>;
+	$ans =~ /^y/i or return;
+} else {
+	print "Mailing bounce from $sFor to $sSender and to test address\n";
+}
+
+require Net::SMTP;
+print "Mailing...";
+
+my $smtp = Net::SMTP->new(
+	'virus-scan.e2e-filter.com',
+	Timeout => 60,
+	Debug => 0,
+) or die $!;
+
+$smtp->mail("<>");
+$smtp->to($sSender);
+$smtp->to('bounce-cc@rudolf.org.uk');
+$smtp->data;
+$smtp->datasend($bounce->as_string);
+$smtp->dataend;
+$smtp->quit;
+print "\n";
+
+sub sGetFor
+{
+	my $msg = shift;
+
+	my @rec = $msg->head->get("Received");
+
+	for (@rec)
+	{
+		return $1 if /for <(.*)>;/;
+	}
+
+	warn "Couldn't get recipient address from 'Received' headers, trying 'To'\n";
+	my $sFrom = $msg->head->get("To")
+		or return undef;
+
+	return $1 if $sFrom =~ /([\w\.-]+\@(?:rudolf)\.org\.uk)\b/i;
+
+	undef;
+}
+
+sub sGetFrom
+{
+	my $msg = shift;
+
+	if (my $unixfrom = $msg->head->get("UNIXFrom"))
+	{
+		# xxx
+	}
+
+	if (my $return = $msg->head->get("Return-Path"))
+	{
+		return $1 if $return =~ /<(.*?)>/;
+	}
+
+	warn "Couldn't get sender address from 'UNIXFrom' or 'Return-Path' headers, trying 'From' and 'Reply-To'\n";
+
+	require Mail::Address;
+
+	if (my $sFrom = $msg->head->get("From"))
+	{
+		my @from = Mail::Address->parse($sFrom);
+		return $from[0]->address if @from == 1;
+	}
+
+	if (my $sFrom = $msg->head->get("Reply-To"))
+	{
+		my @from = Mail::Address->parse($sFrom);
+		return $from[0]->address if @from == 1;
+	}
+
+	undef;
+}
+
+# eof 

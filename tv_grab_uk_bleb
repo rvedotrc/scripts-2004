@@ -1,0 +1,101 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use File::Temp qw( tempfile );
+
+my $DIR = "$ENV{HOME}/.blebtv";
+mkdir $DIR or ($!{EEXIST} and -d $DIR) or die $!;
+my $CHANNEL_FILE = "$DIR/channels";
+my $CACHE_DIR = "$DIR/cache";
+mkdir $CACHE_DIR or ($!{EEXIST} and -d $CACHE_DIR) or die $!;
+my $CACHE_FILE = "$CACHE_DIR/index";
+my $CACHE_AGE = 3600;
+
+GetOptions(
+	"update-channel-list"	=> \&update_channel_list,
+) or exit 2;
+die "Bad options" if @ARGV;
+
+sub update_channel_list
+{
+	# Fetch 
+	# Parse it for this:
+<<'EOF';
+	<h2>Channels</h2>
+<p class="list">
+<a href="channel.html?ch=bbc1&amp;all"><b>BBC 1</b></a>
+<span class="ahem"> | </span>
+<a href="channel.html?ch=bbc2&amp;all"><b>BBC 2</b></a>
+<span class="ahem"> | </span>
+<a href="channel.html?ch=itv1&amp;all"><b>ITV 1</b></a>
+...
+<a href="channel.html?ch=vh1&amp;all">Vh 1</a>
+</p>
+EOF
+
+	my $doc = fetch("http://www.bleb.org/tv/?all");
+	my $content = $doc->content;
+	
+	my @channels;
+	while ($content =~ /<a href="channel\.html\?ch=(.*?)&amp;all"><b>(.*?)<\/b><\/a>/g)
+	{
+		push @channels, [ $1, $2 ];
+	}
+	printf "Found %d channels\n", 0+@channels;
+
+	my ($fh, $name) = tempfile(DIR => $DIR, CLEANUP => 1)
+		or die $!;
+	use Data::Dumper;
+	local $Data::Dumper::Terse = 1;
+	print $fh Data::Dumper->Dump([ \@c ],[ 'c' ]);
+	close $fh;
+
+	rename $name => $CHANNEL_FILE
+		or die $!;
+}
+
+sub fetch
+{
+	my $url = shift;
+
+	my $key = $url;
+	use URI::Escape;
+	my $key = uri_escape($url, "/:?");
+
+	my $head = "$CACHE_DIR/$key.head";
+	my $body = "$CACHE_DIR/$key.body";
+
+	if (-f $head and -f $body and -M $head < $CACHE_AGE/86400)
+	{
+		return HTTPDoc->new($head, $body);
+	}
+
+	print "Fetching $url\n";
+	sleep 3;
+	require LWP::UserAgent;
+	my $ua = LWP::UserAgent->new(
+		agent => "bleb grabber - http://rve.org.uk/contact.html",
+	);
+
+	use HTTP::Request::Common qw( GET );
+	my $req = GET $url;
+
+	my $resp = $ua->request($req);
+
+	my ($headfh, $headfile) = tempfile(DIR => $CACHE_DIR, CLEANUP => 1) or die $!;
+	my ($bodyfh, $bodyfile) = tempfile(DIR => $CACHE_DIR, CLEANUP => 1) or die $!;
+
+	print $bodyfh $resp->content;
+	$resp->content("");
+
+	print $headfh $resp->as_string;
+
+	open(my $fh
+	;
+}
+
+# eof tv_grab_uk_bleb

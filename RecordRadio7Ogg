@@ -1,0 +1,3 @@
+#!/bin/sh
+cd /home/rachel
+./bin/RecordRealAudioOgg http://www.bbc.co.uk/bbc7/realplayer/dsatg2.ram radio7-`date +'%Y%m%d-%H%M%S'`.ogg

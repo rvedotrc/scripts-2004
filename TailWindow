@@ -1,0 +1,48 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+my $numlines = 10;
+my $every_n_lines = 10;
+
+use Getopt::Long;
+GetOptions(
+	"lines|n=i"	=> \$numlines,
+	"every=i"	=> \$every_n_lines,
+) or exit 2;
+die "No arguments allowed\n" if @ARGV;
+
+die "Usage: $0 [OPTIONS] > FILE\n"
+	unless -f STDOUT;
+
+$| = 1;
+
+my @buffer;
+save();
+
+my $counter = 0;
+while (<STDIN>)
+{
+	push @buffer, $_;
+	shift @buffer if @buffer > $numlines;
+
+	++$counter;
+	if ($counter >= $every_n_lines)
+	{
+		save();
+		$counter = 0;
+	}
+}
+
+save();
+exit;
+
+sub save
+{
+	seek(STDOUT, 0, 0) or die $!;
+	print @buffer or die $!;
+	truncate(STDOUT, tell(STDOUT)) or die $!;
+}
+
+# eof TailWindow

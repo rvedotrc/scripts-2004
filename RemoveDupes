@@ -1,0 +1,62 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+@ARGV = glob("*") unless @ARGV;
+
+my @q = @ARGV; @ARGV = ();
+while (@q)
+{
+	my $e = shift @q;
+	push(@ARGV, $e), next
+		if -f $e;
+	
+	if (-d $e)
+	{
+		opendir(D, $e) or die $!;
+		my @e = readdir D;
+		closedir D;
+		@e = grep { not /\A\.\.?\z/ } @e;
+		@e = map { "$e/$_" } @e;
+		unshift @q, @e;
+		next;
+	}
+
+	print "Ignoring unusual inode type $e\n";
+}
+
+my %bysize;
+push @{ $bysize{ -s $_ } }, $_
+	for @ARGV;
+
+use Digest::SHA1;
+
+for (values %bysize)
+{
+	next unless @$_ > 1;
+
+	my %bydigest;
+	
+	for my $f (@$_)
+	{
+		open(F, $f) or die $!;
+		binmode F;
+		my $d = Digest::SHA1->new;
+		$d->addfile(*F);
+		push @{ $bydigest{$d->hexdigest} }, $f;
+	}
+
+	for (values %bydigest)
+	{
+		@$_ > 1 or next;
+
+		my @dupes = @$_;
+		@dupes = sort { length $a <=> length $b } @dupes;
+		shift @dupes;
+		print "$_\n" for @dupes;
+		unlink @dupes;
+	}
+}
+
+# eof RemoveDupes

@@ -1,0 +1,41 @@
+#!/usr/bin/perl5.8.0 -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+use MP3::Tag;
+
+@ARGV = "." unless @ARGV;
+@ARGV = map { -d $_ ? walk($_) : $_ } @ARGV;
+
+sub walk
+{
+	my @files;
+	use File::Find qw( find );
+	my $sub = sub {
+		push @files, $_
+			if /\.mp3$/i and -f $_;
+	};
+	find({ wanted => $sub, follow => 1, no_chdir => 1 }, shift);
+	@files;
+}
+
+for my $file (@ARGV)
+{
+	my $mp3 = MP3::Tag->new($file);
+	$mp3->get_tags;
+
+	next if exists $mp3->{ID3v1};
+	my $id3v2 = $mp3->{ID3v2} or next;
+	my ($song, $track, $artist, $album) = $mp3->autoinfo();
+
+	print "Adding ID3v1 tags to $file\n";
+	my $id3v1 = $mp3->new_tag("ID3v1");
+
+	$id3v1->song($song || " ");
+	$id3v1->artist($artist || " ");
+	$id3v1->album($album || " ");
+	$id3v1->track($track || " ");
+	$id3v1->write_tag;
+}
+
+# eof id3createv1

@@ -1,0 +1,1320 @@
+Subroutine Net::IRC::Connection::_default redefined at ./IsIRCUserOnline line 35.
+Begin loop
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'irc.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              '*** Looking up your hostname...'
+                            ],
+                  'nick' => 'irc.freenode.net',
+                  'type' => 'snotice',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: snotice                           FORMAT: server                        
+FROM: irc.freenode.net
+TO: 
+Arg 0: *** Looking up your hostname...
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'irc.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              '*** Checking ident'
+                            ],
+                  'nick' => 'irc.freenode.net',
+                  'type' => 'snotice',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: snotice                           FORMAT: server                        
+FROM: irc.freenode.net
+TO: 
+Arg 0: *** Checking ident
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'irc.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              '*** No identd (auth) response'
+                            ],
+                  'nick' => 'irc.freenode.net',
+                  'type' => 'snotice',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: snotice                           FORMAT: server                        
+FROM: irc.freenode.net
+TO: 
+Arg 0: *** No identd (auth) response
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'irc.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              '*** Your forward and reverse DNS don\'t match'
+                            ],
+                  'nick' => 'irc.freenode.net',
+                  'type' => 'snotice',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: snotice                           FORMAT: server                        
+FROM: irc.freenode.net
+TO: 
+Arg 0: *** Your forward and reverse DNS don't match
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'Welcome to the freenode IRC Network IsIRCUserOnline'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'welcome',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: welcome                           FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: Welcome to the freenode IRC Network IsIRCUserOnline
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'Your host is leguin.freenode.net[leguin.acc.umu.se/6667], running version dancer-ircd-1.0.35'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'yourhost',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: yourhost                          FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: Your host is leguin.freenode.net[leguin.acc.umu.se/6667], running version dancer-ircd-1.0.35
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'irc.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              '*** Your host is leguin.freenode.net[leguin.acc.umu.se/6667], running version dancer-ircd-1.0.35'
+                            ],
+                  'nick' => 'irc.freenode.net',
+                  'type' => 'snotice',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: snotice                           FORMAT: server                        
+FROM: irc.freenode.net
+TO: 
+Arg 0: *** Your host is leguin.freenode.net[leguin.acc.umu.se/6667], running version dancer-ircd-1.0.35
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'This server was cobbled together Sun Feb 15 03:17:57 UTC 2004'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'created',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: created                           FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: This server was cobbled together Sun Feb 15 03:17:57 UTC 2004
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'leguin.freenode.net',
+                              'dancer-ircd-1.0.35',
+                              'aAbBcCdDeEfFGhHiIjkKlLmMnNopPQrRsStUvVwWxXyYzZ0123459*@',
+                              'bcdefFhiIklmnoPqstv'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'myinfo',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: myinfo                            FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: leguin.freenode.net
+Arg 2: dancer-ircd-1.0.35
+Arg 3: aAbBcCdDeEfFGhHiIjkKlLmMnNopPQrRsStUvVwWxXyYzZ0123459*@
+Arg 4: bcdefFhiIklmnoPqstv
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'MODES=4',
+                              'CHANLIMIT=#:20',
+                              'NICKLEN=16',
+                              'USERLEN=10',
+                              'HOSTLEN=63',
+                              'TOPICLEN=450',
+                              'KICKLEN=450',
+                              'CHANNELLEN=30',
+                              'KEYLEN=23',
+                              'CHANTYPES=#',
+                              'PREFIX=(ov)@+',
+                              'CASEMAPPING=ascii',
+                              'CAPAB',
+                              'IRCD=dancer',
+                              'are available on this server'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'map',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: map                               FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: MODES=4
+Arg 2: CHANLIMIT=#:20
+Arg 3: NICKLEN=16
+Arg 4: USERLEN=10
+Arg 5: HOSTLEN=63
+Arg 6: TOPICLEN=450
+Arg 7: KICKLEN=450
+Arg 8: CHANNELLEN=30
+Arg 9: KEYLEN=23
+Arg 10: CHANTYPES=#
+Arg 11: PREFIX=(ov)@+
+Arg 12: CASEMAPPING=ascii
+Arg 13: CAPAB
+Arg 14: IRCD=dancer
+Arg 15: are available on this server
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'There are 7278 victims and 8484 hiding on 24 servers'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'luserclient',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: luserclient                       FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: There are 7278 victims and 8484 hiding on 24 servers
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '33',
+                              'flagged staff members'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'luserop',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: luserop                           FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: 33
+Arg 2: flagged staff members
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '6435',
+                              'channels formed'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'luserchannels',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: luserchannels                     FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: 6435
+Arg 2: channels formed
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'I have 3457 clients and 0 servers'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'luserme',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: luserme                           FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: I have 3457 clients and 0 servers
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'Current local  users: 3457  Max: 3994'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'n_local',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: n_local                           FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: Current local  users: 3457  Max: 3994
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'Current global users: 15762  Max: 26210'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'n_global',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: n_global                          FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: Current global users: 15762  Max: 26210
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'Highest connection count: 3995 (3994 clients) (701355 since server was (re)started)'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'luserconns',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: luserconns                        FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: Highest connection count: 3995 (3994 clients) (701355 since server was (re)started)
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- leguin.freenode.net Message of the Day - '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motdstart',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motdstart                         FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - leguin.freenode.net Message of the Day - 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- Welcome to leguin.freenode.net in Umeå, Sweden, EU! Thanks to the Academic'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - Welcome to leguin.freenode.net in Umeå, Sweden, EU! Thanks to the Academic
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- Computer Club at Umeå University for sponsoring this server!'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - Computer Club at Umeå University for sponsoring this server!
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- URSULA K. LEGUIN (1929-)  The author of the Earthsea trilogy, City of'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - URSULA K. LEGUIN (1929-)  The author of the Earthsea trilogy, City of
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- Illusions and The Dispossessed.'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - Illusions and The Dispossessed.
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- Welcome to Freenode, a service of Peer-Directed Projects Center.  PDPC is an'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - Welcome to Freenode, a service of Peer-Directed Projects Center.  PDPC is an
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- IRS 501(c)3 (non-profit, tax-exempt) corporation with its headquarters in'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - IRS 501(c)3 (non-profit, tax-exempt) corporation with its headquarters in
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- Texas, USA.  It was set up in 2002 to run freenode and to provide a variety'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - Texas, USA.  It was set up in 2002 to run freenode and to provide a variety
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- of social support services to the FOSS communities and to other, similar,'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - of social support services to the FOSS communities and to other, similar,
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- peer-directed project communities.'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - peer-directed project communities.
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- Donations to PDPC allow us to improve freenode and take on other programs to'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - Donations to PDPC allow us to improve freenode and take on other programs to
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- benefit the comunities we serve.  If you\'d like to help, please check out'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - benefit the comunities we serve.  If you'd like to help, please check out
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- our website (http://freenode.net/); you\'ll find donation buttons near the'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - our website (http://freenode.net/); you'll find donation buttons near the
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- top left-hand side of each page.  Help if you can!'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - top left-hand side of each page.  Help if you can!
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- Freenode runs an open proxy scanner, (www.blitzed.org/bopm), as described on'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - Freenode runs an open proxy scanner, (www.blitzed.org/bopm), as described on
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- our policy page (http://freenode.net/policy.shtml#proxies).  Your use of'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - our policy page (http://freenode.net/policy.shtml#proxies).  Your use of
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- the network indicates your acceptance of this policy.  For your convenience,'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - the network indicates your acceptance of this policy.  For your convenience,
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- reverse DNS for servers running the scanner return the hostname'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - reverse DNS for servers running the scanner return the hostname
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- "proxyscan.freenode.net".'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - "proxyscan.freenode.net".
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- For network policy information, please see our policy page'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - For network policy information, please see our policy page
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- (http://freenode.net/policy.shtml). Thank you for using the network!'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - (http://freenode.net/policy.shtml). Thank you for using the network!
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              '- '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'motd',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: motd                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: - 
+Logged in.
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'MBChatLogger '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'ison',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: ison                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: MBChatLogger 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              ''
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'ison',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: ison                              FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'MBChatLogger',
+                              '~musicbra-',
+                              'rdns.152.240.218.216.fre.communitycolo.net',
+                              '*',
+                              'MusicBrainz Chat Logger'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'whoisuser',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: whoisuser                         FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: MBChatLogger
+Arg 2: ~musicbra-
+Arg 3: rdns.152.240.218.216.fre.communitycolo.net
+Arg 4: *
+Arg 5: MusicBrainz Chat Logger
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'MBChatLogger',
+                              '#musicbrainz '
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'whoischannels',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: whoischannels                     FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: MBChatLogger
+Arg 2: #musicbrainz 
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'MBChatLogger',
+                              'irc.freenode.net',
+                              'http://freenode.net/'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'whoisserver',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: whoisserver                       FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: MBChatLogger
+Arg 2: irc.freenode.net
+Arg 3: http://freenode.net/
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'MBChatLogger',
+                              '2334',
+                              '1096705412',
+                              'seconds idle, signon time'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'whoisidle',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: whoisidle                         FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: MBChatLogger
+Arg 2: 2334
+Arg 3: 1096705412
+Arg 4: seconds idle, signon time
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'MBChatLogger',
+                              'End of /WHOIS list.'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'endofwhois',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: endofwhois                        FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: MBChatLogger
+Arg 2: End of /WHOIS list.
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'nosuchq34ot8j2',
+                              'No such nick/channel'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'nosuchnick',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: nosuchnick                        FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: nosuchq34ot8j2
+Arg 2: No such nick/channel
+_default:
+$event = bless( {
+                  'to' => [
+                            'IsIRCUserOnline'
+                          ],
+                  'format' => 'msg',
+                  'from' => 'MBChatLogger!~musicbra-@rdns.152.240.218.216.fre.communitycolo.net',
+                  'user' => '~musicbra-',
+                  'args' => [
+                              'I don\'t understand \'ping\', IsIRCUserOnline.  Try /msg MBChatLogger help'
+                            ],
+                  'nick' => 'MBChatLogger',
+                  'type' => 'msg',
+                  'userhost' => '~musicbra-@rdns.152.240.218.216.fre.communitycolo.net',
+                  'host' => 'rdns.152.240.218.216.fre.communitycolo.net'
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: msg                               FORMAT: msg                           
+FROM: MBChatLogger!~musicbra-@rdns.152.240.218.216.fre.communitycolo.net
+TO: IsIRCUserOnline
+Arg 0: I don't understand 'ping', IsIRCUserOnline.  Try /msg MBChatLogger help
+_default:
+$event = bless( {
+                  'to' => [
+                            ''
+                          ],
+                  'format' => 'server',
+                  'from' => 'leguin.freenode.net',
+                  'user' => '',
+                  'args' => [
+                              'IsIRCUserOnline',
+                              'nosuchq34ot8j2',
+                              'No such nick/channel'
+                            ],
+                  'nick' => 'leguin.freenode.net',
+                  'type' => 'nosuchnick',
+                  'userhost' => '@',
+                  'host' => ''
+                }, 'Net::IRC::Event' );
+@args = ();
+TYPE: nosuchnick                        FORMAT: server                        
+FROM: leguin.freenode.net
+TO: 
+Arg 0: IsIRCUserOnline
+Arg 1: nosuchq34ot8j2
+Arg 2: No such nick/channel

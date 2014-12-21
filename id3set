@@ -1,0 +1,105 @@
+#!/usr/bin/perl5.8.0 -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+use MP3::Tag;
+use Term::ReadLine;
+
+@ARGV = "." unless @ARGV;
+@ARGV = map { -d $_ ? walk($_) : $_ } @ARGV;
+
+sub walk
+{
+	my @files;
+	use File::Find qw( find );
+	my $sub = sub {
+		push @files, $_
+			if /\.mp3$/i and -f $_;
+	};
+	find({ wanted => $sub, follow => 1, no_chdir => 1 }, shift);
+	@files;
+}
+
+my $term = new Term::ReadLine 'IDv3 Tag Writer';
+my $OUT = $term->OUT || \*STDOUT;
+-t or die;
+
+for my $filename (@ARGV)
+{
+	my $mp3 = MP3::Tag->new($filename);
+
+	defined($mp3)
+		or warn("Can't read ID3 tags from '$filename' ($!)\n"), next;
+
+	$mp3->get_tags;
+	my ($song, $track, $artist, $album) = $mp3->autoinfo();
+	next unless $artist =~ /various/i;
+
+	print $OUT "File: $filename\n";
+
+	$term->addhistory($_)
+		for split /\s*[\/-]\s*/, $song;
+
+	$artist = $term->readline("Enter artist: ", $artist);
+	$term->addhistory($artist);
+
+	$song = $term->readline("Enter song: ", $song);
+	$term->addhistory($song);
+
+	$album = $term->readline("Enter album: ", $album);
+	$term->addhistory($album);
+
+	if (my $id3v1 = $mp3->{ID3v1})
+	{
+		$id3v1->song($song || " ");
+		$id3v1->artist($artist || " ");
+		$id3v1->album($album || " ");
+	  	$id3v1->comment(" ");
+		$id3v1->year(" ");
+		$id3v1->track(" ") unless $album;
+		$id3v1->genre(" ");
+		$id3v1->write_tag();
+	}
+
+	if (my $id3v2 = $mp3->{ID3v2})
+	{
+#		my $tags = $id3v2->supported_frames();
+#
+#		for my $fname (sort keys %$tags)
+#		{
+#			my $longname = $tags->{$fname};
+#			print "$fname $longname: ", 
+#					join("; ", @{$id3v2->what_data($fname)}), "\n";
+#		}
+
+		set($id3v2, "TIT2", $song);
+		set($id3v2, "TALB", $album);
+		set($id3v2, "TPE1", $artist);
+		set($id3v2, "COMM");
+		set($id3v2, "TRCK") unless $album;
+
+		sub set
+		{
+			my ($id3v2, $tag, @values) = @_;
+			@values = () unless "@values" =~ /\S/;
+
+			unless (@values)
+			{
+				while ($id3v2->remove_frame($tag)) {1}
+				return;
+			}
+
+			$id3v2->remove_frame($tag);
+			$id3v2->add_frame($tag, @values);
+		}
+
+	  	#$id3v2->comment("");
+		#$id3v2->year("");
+		#$id3v2->track("") unless $album;
+		#$id3v2->genre("");
+
+		$id3v2->write_tag();
+	}
+}
+
+# eof id3set

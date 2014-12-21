@@ -1,0 +1,93 @@
+#!/usr/bin/perl
+# vi: set ts=4 sw=4 :
+
+use warnings;
+use strict;
+
+my %files;
+
+my $scandir = sub {
+	my $name = $_;
+
+	my @lstat = lstat($name)
+		or return;
+
+	if (-f _)
+	{
+		$files{$name} = \@lstat;
+	}
+};
+
+@ARGV = "." if not @ARGV;
+
+for my $ent (@ARGV)
+{
+	my @lstat = lstat $ent
+		or warn("lstat $ent: $!\n"), next;
+	
+	if (-d _)
+	{
+		use File::Find qw( find );
+		find({ no_chdir => 1, wanted => $scandir }, $ent);
+	} elsif (-f _) {
+		$files{$ent} = \@lstat;
+	}
+}
+
+# Group by size
+my %bysize;
+push @{ $bysize{$files{$_}[7]} }, $_ for keys %files;
+
+@{$bysize{$_}}==1 and delete $bysize{$_}
+	for keys %bysize;
+
+dbmopen(my %cached_checksums, "$ENV{HOME}/.FindDupeCache", 0700)
+	or die "dbmopen: $!";
+
+my $get_checksum = sub {
+	my $file = shift;
+
+	my @lstat = @{ $files{$file} };
+
+	my $sum_and_stat = $cached_checksums{"$lstat[0] $lstat[1]"};
+	if ($sum_and_stat)
+	{
+		my ($sum, @stat) = split ' ', $sum_and_stat;
+		if ($lstat[9] == $stat[9])
+		{
+			return $sum;
+		}
+	}
+
+	open(my $fh, "<", $file) or die;
+	binmode $fh;
+
+	use Digest::SHA1;
+	my $sha1 = Digest::SHA1->new;
+	$sha1->addfile($fh);
+
+	my $sum = $sha1->hexdigest;
+
+	$cached_checksums{"$lstat[0] $lstat[1]"} = join(" ", $sum, @lstat);
+
+	$sum;
+};
+
+my @out;
+
+while (my ($size, $names) = each %bysize)
+{
+	# Get a checksum of each file
+	my %bychecksum;
+	push @{ $bychecksum{ &$get_checksum($_) } }, $_ for @$names;
+
+	@{$bychecksum{$_}}==1 and delete $bychecksum{$_}
+		for keys %bychecksum;
+
+	push @out, join("\n", sort @$_) . "\n\n"
+		for values %bychecksum;
+}
+
+print sort @out;
+
+# eof FindDuplicates

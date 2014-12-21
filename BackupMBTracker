@@ -1,0 +1,11 @@
+#!/bin/sh
+
+cd /home/rachel
+XMLGZ=./MusicBrainz/xml_export-`date +'%Y%m%d-%H%M%S'`.xml.gz
+BIN=./cvs/local/SourceForge
+$BIN/DownloadMBTrackerXML | gzip > $XMLGZ
+gunzip < $XMLGZ | $BIN/FindUncategorizedBugs
+
+cd MusicBrainz && rm -f `find . -name 'xml_export*' -mtime +7`
+
+# eof

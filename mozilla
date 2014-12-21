@@ -1,0 +1,4 @@
+#!/bin/sh
+
+. ~/bin/.locale
+/usr/local/mozilla/mozilla "$@"

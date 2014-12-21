@@ -1,0 +1,90 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+use Image::Magick;
+
+chdir "/home/rachel/var/pictures/camera" or die $!;
+
+my @jpeg = <originals/*/*.jpg>;
+
+for my $jpeg (@jpeg)
+{
+	my ($dir, $base) = $jpeg =~ /^originals\/(.+)\/(\w+)\.jpg$/;
+	my $jt = (stat $jpeg)[9];
+
+	my ($meta, $metats) = readmeta("meta/$base.meta");
+
+	my $makeit = sub {
+		my ($target, $xfrm) = @_;
+		$target = "derived/$target";
+
+		my $t = (stat $target)[9];
+		if (defined $t)
+		{
+			return if $t >= $jt and (not $metats or $t >= $metats);
+		}
+
+		print "Making $target from $jpeg via $xfrm and $meta\n";
+		&$xfrm;
+	};
+
+	my $scaleto = sub {
+		my ($longedge, $outfile) = @_;
+		$outfile = "derived/$outfile";
+		use Imager;
+		my $img = Imager->new();
+		print "open $jpeg\n";
+		$img->open(file => $jpeg) or die $img->errstr();
+
+		if (my $degrees_clockwise = $meta->{rotate})
+		{
+			print "Rotating by $degrees_clockwise\n";
+			$img = $img->rotate(degrees => $degrees_clockwise);
+		}
+
+		my ($w, $h) = ($img->getwidth, $img->getheight);
+		print "w=$w h=$h\n";
+
+		my $long = ($w > $h ? $w : $h);
+		my $factor = $longedge / $long;
+
+		print "Scaling by $factor\n";
+		my $thumb = $img->scale(scalefactor => $factor);
+
+		use File::Path qw( mkpath );
+		use File::Basename qw( dirname );
+		mkpath(dirname($outfile));
+		
+		print "save to $outfile\n";
+		$thumb->write(file => $outfile)
+			or die $thumb->errstr;
+	};
+
+	&$makeit("800/$dir/$base-800.jpg", sub { &$scaleto(800, $_[0]) });
+	&$makeit("640/$dir/$base-640.jpg", sub { &$scaleto(640, $_[0]) });
+	&$makeit("500/$dir/$base-500.jpg", sub { &$scaleto(500, $_[0]) });
+	&$makeit("256/$dir/$base-256.jpg", sub { &$scaleto(256, $_[0]) });
+}
+
+sub readmeta
+{
+	my $file = shift;
+	my $fh;
+	unless (open($fh, "<", $file))
+	{
+		return {} if $!{ENOENT};
+		die $!;
+	}
+
+	my %meta;
+	while (<$fh>)
+	{
+		/^(\w+)=(.*)$/ or next;
+		$meta{$1} = $2;
+	}
+
+	(\%meta, (stat $fh)[9]);
+}
+
+# eof ResizeImages

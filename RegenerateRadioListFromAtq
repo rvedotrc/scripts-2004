@@ -1,0 +1,52 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+my @atq = split /\n\t\n/, scalar `atqv`;
+
+my $radiodata = [];
+my @started;
+
+my @l = localtime;
+for (@atq)
+{
+	#print "[$_]\n";
+	my ($job, @t) = /\A(\d+)\s+(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d) /
+		or die;
+
+	use POSIX qw( mktime );
+	my $epoch = mktime(0, $t[4], $t[3], $t[2], $t[1]-1, $t[0]-1900, @l[6,7,8]);
+	my $localtime = localtime($epoch);
+	#print "@t => $localtime\n";
+
+	if (/killall realplay/)
+	{
+		my $e = shift @started
+			or die;
+		$e->{'id_stop'} = $job;
+		$e->{'rec_stop'} = $epoch;
+		$e->{'end'} = $epoch-5*60;
+	} elsif (/--station=(\w+)/) {
+		my $e = {
+			name		=> undef,
+			rep_seq		=> undef,
+			rep_tot		=> undef,
+			start		=> $epoch+5*60,
+			rec_start	=> $epoch,
+			id_start	=> $job,
+			station		=> $1,
+		};
+		push @started, $e;
+		push @$radiodata, $e;
+	} else {
+		warn "Ignoring at-job: $_\n";
+	}
+}
+
+die if @started;
+
+use Data::Dumper;
+print Data::Dumper->Dump([ $radiodata ],[ 'radiodata' ]);
+
+# eof RegenerateRadioListFromAtq

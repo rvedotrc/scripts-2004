@@ -1,0 +1,17 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+for (`atq | sort -k2`)
+{
+	print;
+	(my $id) = /^(\d+)\s/ or next;
+	my $job = `at -c $id`;
+	$job =~ s/\A(.*)(^cd \/.*)\z/$2/ms;
+	$job =~ s/\A(cd .*?) \|\| {.*?}\n/$1\n/s;
+	$job =~ s/^/\t/mg;
+	print $job;
+}
+
+# eof atqv

@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+# vi: set ts=4 sw=4 :
+
+use warnings;
+use strict;
+
+chdir "$ENV{HOME}/var/pictures/camera/originals"
+	or die $!;
+chmod 0755, ".";
+
+use Fcntl;
+use Fcntl qw( :seek );
+sysopen(my $times, "pictures.list", O_CREAT|O_RDWR|O_APPEND)
+	or die $!;
+sysseek($times, 0, SEEK_SET);
+
+my %seen;
+while (<$times>)
+{
+	my ($name, $mtime, $timestr) = split /\t/;
+	++$seen{$name};
+}
+
+my @scan;
+my $sub = sub {
+	-f or return;
+	/\bcimg(\d+)\.(jpg|avi)$/ or return;
+	$scan[ $1 ] = [ $_, (stat _)[9] ];
+};
+
+use File::Find qw( find );
+find({ wanted => $sub }, ".");
+
+for my $found (@scan)
+{
+	$found or next;
+	my ($name, $mtime) = @$found;
+	next if $seen{$name}++;
+	my $str = localtime $mtime;
+	print $times "$name\t$mtime\t$str\n";
+	print "$name\t$mtime\t$str\n";
+}
+
+# eof BackupPictureTimes

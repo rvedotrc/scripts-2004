@@ -1,0 +1,12 @@
+#!/bin/sh
+
+DATE=`date +'%Y-%m-%d'`
+DIR=$HOME/tmp/"TV and Radio"
+
+FILE="$DIR"/radio-"$DATE"-bbc7.html
+wget -q -O "$FILE" "http://www.bbc.co.uk/bbc7/listings/index.shtml?Today"
+
+FILE="$DIR"/radio-"$DATE"-radio4.html
+wget -q -O "$FILE" 'http://www.bbc.co.uk/cgi-perl/whatson/search/daylist.cgi?tmp=whatson/sdk/radio4/daylist_radio4.tmpl&day=Today&service_id=49700'
+
+# eof

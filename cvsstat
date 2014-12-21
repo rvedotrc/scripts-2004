@@ -1,0 +1,479 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+my $Id = '$Id: cvsstat,v 1.1 2004/10/06 11:54:31 rachel Exp $';
+my $Revision = '$Revision: 1.1 $';
+
+=pod
+
+=head1 NAME
+
+cvsstat - show terse "cvs status" output, one line per file
+
+=head1 SYNOPSIS
+
+    cvsstat -h
+    cvsstat [-1] [-l] [status-filter-options] [file ...]
+
+=head1 DESCRIPTION
+
+F<cvsstat> is a terse form of "cvs status"; it shows the status of each file,
+one line per file, listing the status, working revision, repository revision
+and filename like this:
+
+    Up-to-date        1.1	1.1	Makefile
+    Needs patch       1.3	1.4	db.h
+    Locally Modified  1.7	1.7	src.c
+
+=head2 Options
+
+=over 4
+
+=item -h
+
+Show help
+
+=item -1
+
+Only show the filename (one per line), like C<S<ls -1>>.  Good for piping or
+backtick-feeding to other programs like this:
+
+	cvs update `cvsstat -1p`
+	cvs commit `cvsstat -1r`
+
+=item -l
+
+Don't recurse - run in the local directory only, like C<S<cvs status -l>>
+
+=item -a -c -e -g -i -m -o -p -r -s -u
+
+Only show files of the given status.  For example, C<S<cvsstat -a>> will only show
+things which are "Locally Added".  C<S<cvsstat -pg>> will show only "Needs Patch"
+and "Needs Merge".  See below for a full list of the switches.
+
+=item -A -C -E -G -I -M -O -P -R -S -U
+
+Like their lower-case equivalents, but in reverse; B<don't> show files with
+the given status.  For example one of the most popular invocations of
+F<cvsstat> is C<S<cvsstat -O>>, which shows everything except those files which
+are "Up-to-date".  C<S<cvsstat -AM>> would show all files except those which are
+"Locally Added" or "Locally Modified".
+
+=back
+
+=head2 CVS Status Filter Switches
+
+Use the lower-case options to include the given status; use the upper-case
+options to exclude.
+
+	-a	Locally Added
+	-c	File had conflicts on merge
+	-e	Needs Checkout
+	-g	Needs Merge
+	-i	Entry Invalid
+	-m	Locally Modified
+	-o	Up-to-date
+	-p	Needs Patch
+	-r	Locally Removed
+	-s	Unresolved Conflict
+	-u	Unknown
+
+By default all lines are shown, unless there is at least one lowercase
+status filter
+switch given, in which case no lines are shown.
+Lines of unrecognised status (where there is no corresponding switch
+above) will always be shown - but this should never happen, at least not in
+this version (1.10 / 1.11) of CVS.
+
+=head1 AUTHOR
+
+Rachel Evans for Power Internet <rachel.evans@power.net.uk>
+
+=head1 CHANGE LOG
+
+=over 4
+
+=item 1.1 2001-09-04
+
+Original version
+
+=item 1.2 2001-09-04
+
+Added examples to "cvsstat -h" output.
+
+=item 1.3 2001-09-04
+
+Tweak example to be more informative.
+
+=item 1.4 2001-09-04
+
+Added Id and Revision strings.
+
+=item 1.5 2002-05-02
+
+Ignore anything that's neither a regular file nor a directory (e.g. pipes,
+sockets etc).
+
+=item 1.6 2003-01-11
+
+Change the way we call 'cvs' to also work under CVS_RSH usage.  (I don't know
+why it didn't work before, but it didn't).
+
+Added the whole POD section, including this change log.
+
+=item 1.7 2003-01-14
+
+When scanning the filesystem, don't follow symlinks.  Following them is very
+rarely helpful.
+
+Die straight away if there was a problem with "cvs status", e.g. not logged
+in.
+
+=back
+
+=cut
+
+use strict;
+use Getopt::Std;
+
+# These strings need to match those in the CVS source: src/status.c,
+# status_fileproc() :
+
+my %switch_to_desc = (
+	'a'	=> 'Locally Added',
+	'c'	=> 'File had conflicts on merge',
+	'e'	=> 'Needs Checkout',
+	'g'	=> 'Needs Merge',
+	'i'	=> 'Entry Invalid',
+	'm'	=> 'Locally Modified',
+	'o'	=> 'Up-to-date',
+	'p'	=> 'Needs Patch',
+	'r'	=> 'Locally Removed',
+	's'	=> 'Unresolved Conflict',
+	'u'	=> 'Unknown',
+);
+
+my %known_status;
+@known_status{values %switch_to_desc} = ();
+
+my @switches = sort keys %switch_to_desc;
+my $switches = join "", @switches;
+
+my %opts;
+getopts("l1hd$switches".uc($switches), \%opts);
+
+if ($opts{'h'}) {
+	die
+"Usage: cvsstat [options] [what...]
+
+Options:
+	-h  This help
+	-1  Show filename only
+	-l  Don't recurse (same as cvs status -l)
+	-d  Debug
+
+" . join("\n", map { "\t-$_  Include '$switch_to_desc{$_}'" } sort keys %switch_to_desc) . "
+	-X  The opposite of -x, for all above options except -h1ld
+
+By default all lines are shown, unless there is at least one lowercase
+switch given, in which case no lines are shown.  Specifying -X suppresses a
+line.  Lines of unrecognised status (where there is no corresponding switch
+above) will always be shown.  
+
+Examples:
+
+	# Show everything!
+	cvsstat
+
+	# Show things which aren't OK in the 'lib' directory:
+	cvsstat -O lib
+
+	# Show only the names of files which are unknown:
+	cvsstat -1u
+
+	# Update only the files which need patching:
+	cvs update `cvsstat -1p`
+
+";
+}
+
+my $DEBUG = $opts{'d'};
+require Data::Dumper if $DEBUG;
+
+my $fShowFilenameOnly = $opts{1};
+
+my @cvs_flags;
+push @cvs_flags, "-l" if $opts{'l'};
+
+delete @opts{'d', 'h', '1', 'l'};
+
+# Default, if no lowercase switches, is to show everything.
+@opts{@switches} = (1) x @switches
+	unless grep { $_ eq lc($_) } keys %opts;
+
+# Suppress lines for -X
+my @off = map { lc($_) } grep { $_ eq uc($_) } keys %opts;
+delete @opts{@off};
+
+my %include_by_desc = map { $switch_to_desc{$_} => $opts{$_} } @switches;
+
+my @args = @ARGV;
+@args = '.' unless @args;
+
+grep { s#/\z## } @args;
+
+for my $name (@args)
+{
+	if (-d($name))
+	{
+		$name =~ s/\/+$//;
+		stat_dir($name);
+	} else {
+		stat_file($name);
+	}
+}
+
+sub stat_file
+{
+	my $filename = shift;
+
+	my @lines = run_cvs_cmd("cvs", "status", @cvs_flags, $filename);
+	@lines = grep !/^use `cvs add'/, @lines;
+	my $files = parse_output(\@lines, ".");
+
+	($files->{$filename}) = values %$files;
+
+	for ($filename)
+	{
+		my $info = $files->{$_} || [ "Unknown", "", "" ];
+		Show($_, @$info);
+	}
+}
+
+sub stat_dir
+{
+	my $dir = shift;
+
+	my @files = find_nonignored_files($dir);
+
+	grep { s[^\./][] } @files;
+
+	print Data::Dumper->Dump([ \@files ],[ '*files' ]) if $DEBUG;
+
+	my @lines = run_cvs_cmd("cvs", "status", @cvs_flags, $dir);
+	@lines = grep !/^use `cvs add'/, @lines;
+	my $files = parse_output(\@lines, $dir);
+
+	print Data::Dumper->Dump([ $files ],[ '$files' ]) if $DEBUG;
+
+	my %files;
+	@files{@files} = ();
+	@files{keys %$files} = ();
+
+	print Data::Dumper->Dump([ [sort keys %$files] ],[ '*sort_keys_dollarfiles' ]) if $DEBUG;
+	print Data::Dumper->Dump([ [sort keys %files] ],[ '*sort_keys_files' ]) if $DEBUG;
+
+	for (sort keys %files)
+	{
+		my $info = $files->{$_} || [ "Unknown", "", "" ];
+		Show($_, @$info);
+	}
+}
+
+# This used to be just backticks: `$cmd` but for some reason that throws away
+# half of the output when using CVS over SSH (CVS_RSH=/usr/bin/ssh).
+
+sub run_cvs_cmd
+{
+	my (@args) = @_;
+
+	# Sanity check
+	die if @args < 2;
+	$args[0] eq "cvs" or die;
+
+	use IO::File;
+	my $fh = IO::File->new_tmpfile or die $!;
+
+	defined(my $pid = fork) or die $!;
+
+	if (not $pid)
+	{
+		open(STDIN, "/dev/null") or die $!;
+		open(STDOUT, ">&".fileno($fh)) or die $!;
+		open(STDERR, ">&".fileno($fh)) or die $!;
+		exec @args or die $!;
+	}
+
+	waitpid $pid, 0;
+	seek($fh, 0, 0) or die $!;
+	my @lines = <$fh>;
+	close $fh;
+
+	@lines;
+}
+
+sub parse_output
+{
+	my ($lines, $dir) = @_;
+
+	grep /^cvs (status|server): Examining (.*)$/, @$lines
+		or die join "", @$lines;
+
+	print Data::Dumper->Dump([ $lines ],[ 'lines' ]) if $DEBUG;
+
+	grep {
+		/status aborted/i and die join "", grep /^cvs /, @$lines;
+	} @$lines;
+
+	$dir =
+		$dir eq "." ? ""
+		: $dir."/";
+
+	my %files;
+
+	for (;;)
+	{
+		last unless @$lines;
+
+		my $line = $lines->[0];
+		if ($line =~ /^cvs (status|server): Examining (.*)$/)
+		{
+			$dir = $2;
+
+			$dir =
+				$dir eq "." ? ""
+				: $dir."/";
+
+			shift(@$lines);
+			next;
+		}
+
+		$line =~ /^={30,}$/
+			or shift(@$lines), next;
+
+		shift @$lines;
+
+		my $chunk = "";
+		$chunk = shift @$lines;
+
+		while (@$lines and $lines->[0] !~ /^\S/)
+		{
+			$chunk .= shift @$lines;
+		}
+
+		local $_ = $chunk;
+
+		{
+			next unless /\S/;
+			/File:\s*(no file )?(.+?)\s*Status: / and my $file = $2;
+			/Status: (.*)/m and my $status = $1;
+			my $workrev;
+			my $reposrev;
+			/Working revision:\s+(\d\S+)/ and $workrev = $1;
+			/Repository revision:\s+(\d\S+)/ and $reposrev = $1;
+
+			$file ||= '?';
+			$status ||= '?';
+			$workrev||='';
+			$reposrev||='';
+
+			$files{$dir.$file} = [ $status, $workrev, $reposrev ];
+		}
+	}
+
+	\%files;
+}
+
+sub Show
+{
+	my ($name, $status, $workrev, $reposrev) = @_;
+	
+	if (exists $known_status{$status})
+	{
+		return unless $include_by_desc{$status};
+	} else {
+		warn "Warning: unrecognised status '$status'\n";
+		$known_status{$status} = undef;
+		$include_by_desc{$status} = 1;
+	}
+
+	if ($fShowFilenameOnly)
+	{
+		print $name, "\n";
+	} else {
+		printf "%-20.20s\t%s\t%s\t%s\n",
+			$status, $workrev, $reposrev, $name;
+	}
+}
+
+sub find_nonignored_files
+{
+	my $dir = shift;
+
+	opendir(D, $dir) or die "opendir $dir: $!";
+	my @e = sort readdir D;
+	closedir D;
+
+	@e = grep { not -l "$dir/$_" } @e;
+
+	@e = grep { not -d "$dir/$_" } @e
+		if grep { $_ eq "-l" } @cvs_flags;
+
+	print Data::Dumper->Dump([ \@e ],[ "*e-$dir" ]) if $DEBUG;
+
+	@e = grep !/^((\.\.?)|CVS)$/, @e;
+
+	print Data::Dumper->Dump([ \@e ],[ "*e-$dir" ]) if $DEBUG;
+
+	if (-f "$dir/.cvsignore")
+	{
+		open(I, "$dir/.cvsignore") or die "open $dir/.cvsignore: $!";
+		my @ig = <I>;
+		chomp @ig;
+		close I;
+		@e = grep {
+			my $f = $_;
+			not grep { file_matches_wildcard($f, $_) } @ig;
+		} @e;
+	}
+
+	@e = map { "$dir/$_" } @e;
+
+	print Data::Dumper->Dump([ \@e ],[ "*e-$dir" ]) if $DEBUG;
+
+	sort map {
+		-f($_) ? $_ : -d(_) ? find_nonignored_files($_) : ()
+	} @e;
+}
+
+sub file_matches_wildcard
+{
+	my ($filename, $wildcard) = @_;
+	# currently we only implement "*" and "?" (and rather poorly at that)
+	$wildcard = quotemeta($wildcard);
+	$wildcard =~ s/\\\*/.*/g;
+	$wildcard =~ s/\\\?/./g;
+	$filename =~ /^$wildcard$/;
+}
+
+__END__
+
+Example output (remove the '|' in the first column):
+|===================================================================
+|File: search.html       Status: Locally Modified
+|
+|   Working revision:    1.2     Thu Dec  7 19:04:19 2000
+|   Repository revision: 1.2     /home/timg/work/CVS/PINE/pages/corporate/search/search.html,v
+|   Sticky Tag:          (none)
+|   Sticky Date:         (none)
+|   Sticky Options:      (none)
+|
+|cvs status: use `cvs add' to create an entry for products.pm
+|===================================================================
+|File: products.pm       Status: Unknown
+|
+|   Working revision:    No entry for products.pm
+|   Repository revision: No revision control file
+|
+   
+# eof cvsstat

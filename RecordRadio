@@ -1,0 +1,203 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+my $url;
+my $filearg;
+my $format;
+my $silent = 0;
+my $restart = 0;
+my $prefix = "radio";
+my $iExpectOutputWithin = 60;
+my $iPollInterval = 10;
+
+my %stations = (
+	radio1	=> "http://www.bbc.co.uk/radio1/realaudio/media/r1live.ram",
+	radio4	=> "http://www.bbc.co.uk/radio4/realplayer/media/fmg2.ram",
+	bbc7	=> "http://www.bbc.co.uk/bbc7/realplayer/dsatg2.ram",
+);
+
+my %formats = (
+	"wav"		=> 1,
+	"ogg"		=> 1,
+	"sunau"		=> 1,
+	"delayedwav"=> 1,
+	"justplay"	=> 1,
+);
+
+use Getopt::Long;
+GetOptions(
+	"url=s"		=> \$url,
+	"station=s"	=> sub {
+		$url = $stations{$_[1]};
+		return if defined $url;
+		my $known = join " ", sort keys %stations;
+		die "Unknown station '$_[1]'.  Known stations are: $known\n";
+	},
+	"output=s"	=> \$filearg,
+	"format=s"	=> sub {
+		$format = $formats{$_[1]} && $_[1];
+		return if defined $format;
+		my $known = join " ", sort keys %formats;
+		die "Unknown format '$_[1]'.  Known formats are: $known\n";
+	},
+	"silent!"	=> \$silent,
+	"restart!"	=> \$restart,
+	"prefix=s"	=> \$prefix,
+	"expect=i"	=> \$iExpectOutputWithin,
+	"poll=i"	=> \$iPollInterval,
+	"help|h|?"	=> sub { print help(), exit },
+) or exit 2;
+
+print help(), exit if @ARGV;
+
+sub help
+{
+	<<EOF
+RecordRadio [OPTIONS]
+
+	--url=URL		the Real Audio stream to record
+	--station=NAME	specify URL by one of the preset names
+	--output=FILE	save to the named file
+	--prefix=NAME	save to a file starting with the given prefix
+	--format=FORMAT	specify the recording method and format
+	--[no]silent	[don't] operate silently (by suppressing the sound card)
+	--[no]restart	[don't] restart RealPlayer whenever it exits
+	--help			show this help
+
+EOF
+}
+
+defined($url) or die "You must specify either --url or --station\n";
+
+sub nowstamp
+{
+	require POSIX;
+	POSIX::strftime("%Y%m%d-%H%M%S", localtime);
+}
+
+RESTART:
+
+my $file = $filearg;
+
+if (not defined $file and not defined $format)
+{
+	$file = "$prefix-" . nowstamp() . ".wav";
+	$format = "wav";
+	print "Streaming WAV data into $file\n";
+}
+elsif (not defined $file and $format ne "justplay")
+{
+	$file = "$prefix-" . nowstamp() . ".$format";
+	$file =~ s/\.delayedwav$/\.wav/;
+	print "Saving to $file\n";
+}
+elsif (not defined $format)
+{
+	$format = "wav" if $file =~ /\.wav$/i;
+	$format = "ogg" if $file =~ /\.ogg$/i;
+	if (not defined $format)
+	{
+		warn "Don't know what format to use - assuming wav\n";
+		$format = "wav";
+	}
+}
+
+my $vsound = "/usr/bin/vsound";
+my $realplay = "/usr/local/RealPlayer8/realplay";
+my $sox = "sox";
+my $oggenc = "oggenc";
+
+# Note: A default install of "vsound" won't accept "--stdout" - it always says
+# "Error : cannot specify both --verbose and --stdout."
+# To get --stdout to work, change this line:
+# if [ $verbose ] && [ "$VSOUND_STDOUT" ]; then
+# to this:
+# if [ "$verbose" = 1 ] && [ "$VSOUND_STDOUT" ]; then
+
+use String::ShellQuote qw( shell_quote );
+sub make_cmd { join " ", map { shell_quote($_) } @_ }
+my $cmd;
+
+if ($format eq "wav")
+{
+	$cmd = make_cmd(
+		$vsound,
+		"--stdout",
+		($silent ? () : "--dspout"),
+		"--timing",
+		$realplay,
+		$url,
+	) . " | " . make_cmd(
+		$sox,
+		"-t", "au", "-",
+		"-t", $format, $file,
+	);
+}
+elsif ($format eq "ogg")
+{
+	$cmd = make_cmd(
+		$vsound,
+		"--stdout",
+		($silent ? () : "--dspout"),
+		"--timing",
+		$realplay,
+		$url,
+	) . " | " . make_cmd(
+		$sox,
+		"-t", "au", "-",
+		"-t", "wav", "-",
+	) . " | " . make_cmd(
+		$oggenc,
+		"-o", $file,
+		"-",
+	);
+}
+elsif ($format eq "delayedwav")
+{
+	$cmd = make_cmd(
+		$vsound,
+		"--file=$file",
+		($silent ? () : "--dspout"),
+		"--timing",
+		$realplay,
+		$url,
+	);
+}
+elsif ($format eq "justplay")
+{
+	exec $realplay, $url;
+}
+
+defined(my $pid = fork)
+	or die;
+
+if ($pid == 0)
+{
+	{ exec $cmd };
+	die $!;
+}
+
+my $starttime = time;
+
+for (;;)
+{
+	sleep $iPollInterval || 1;
+
+	use POSIX ":sys_wait_h";
+	my $child = waitpid($pid, WNOHANG);
+	last if $child > 0;
+
+	if (not -e $file and time() >= $starttime + $iExpectOutputWithin)
+	{
+		printf "No output after %d seconds - killing pid $pid\n",
+			time()-$starttime;
+		kill TERM => $pid;
+	}
+}
+
+goto RESTART if $restart;
+exit $?>>8;
+
+# eof RecordRadio

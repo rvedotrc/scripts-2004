@@ -1,0 +1,38 @@
+#!/usr/bin/perl
+# vi: set ts=4 sw=4 :
+
+use strict;
+use warnings;
+
+my $at = `atqv`;
+$at =~ s/\s+$//mg;
+
+for my $chunk (split /\n(?=\d+)/, $at)
+{
+	my ($num, $date, $time, $queue, $user, $dir, $commands)
+		= $chunk =~ /
+			\A
+			^
+			(\d+)\s+
+			(\d\d\d\d-\d\d-\d\d)\x20(\d\d:\d\d)
+			\x20(\w)
+			\x20(\w+)
+			\n\s+
+			cd\x20(.*?)
+			\n\s+
+			(.*)\z
+			/xs
+			or die "Failed to parse chunk [$chunk]";
+	
+	if ($commands eq "killall realplay")
+	{
+		next;
+	}
+
+	if ($commands =~ /RecordRadio/)
+	{
+		next;
+	}
+
+	warn "Ignoring job #$num '$commands'\n";
+}

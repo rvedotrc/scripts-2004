@@ -1,0 +1,4 @@
+#!/bin/sh
+
+. ~/bin/.locale
+/usr/local/mozilla/mozilla -remote "openURL($1,new-tab)"

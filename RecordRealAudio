@@ -1,0 +1,6 @@
+#!/bin/sh
+
+[ "$#" = 2 ] || ( echo "Usage: RecordRealAudio URL FILE" >&2 ; exit 2 )
+/usr/local/bin/vsound --file "$2" --dspout --timing /usr/local/RealPlayer8/realplay "$1"
+
+# eof RecordRealAudio

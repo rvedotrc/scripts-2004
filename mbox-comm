@@ -1,0 +1,151 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use warnings;
+use strict;
+use Mail::Mbox::MessageParser;
+
+use Getopt::Std;
+my %opts;
+getopts('123', \%opts);
+
+@ARGV == 2 or die "Usage: mbox-comm -[123] MBOX1 MBOX2\n";
+
+my ($name1, $name2) = @ARGV;
+
+open(my $fh1, "<", $name1) or die "open $name1: $!\n";
+open(my $fh2, "<", $name2) or die "open $name2: $!\n";
+
+my $all1 = do { local $/; <$fh1> };
+my $all2 = do { local $/; <$fh2> };
+$all1 =~ s/\015\012/\012/g;
+$all2 =~ s/\015\012/\012/g;
+open($fh1, "<", \$all1) or die;
+open($fh2, "<", \$all2) or die;
+
+my $reader1 = Mail::Mbox::MessageParser->new({
+	#'file_name' => $name1,
+	'file_handle' => $fh1,
+	'enable_cache' => 0,
+	'enable_grep' => 1,
+});
+
+my $reader2 = Mail::Mbox::MessageParser->new({
+	#'file_name' => $name2,
+	'file_handle' => $fh2,
+	'enable_cache' => 0,
+	'enable_grep' => 1,
+});
+
+# Discard prologues
+for ($reader1, $reader2)
+{
+	my $p = $_->prologue;
+	printf "Discarding %d chars (%d lines) of prologue\n",
+		length($p), ($p =~ tr/\n//)
+		if $p;
+}
+
+# Scan both files completely
+local $ARGV = $name1;
+my ($index1, $list1) = scanfile($reader1);
+local $ARGV = $name2;
+my ($index2, $list2) = scanfile($reader2);
+sub scanfile
+{
+	my $reader = shift;
+	my %index;
+	my @list;
+	my $prefix = "";
+	my $line = 1;
+
+	while (not $reader->end_of_file)
+	{
+		my $contentref = $reader->read_next_email;
+
+		# Try the quick approach
+		unless ($$contentref =~ /\A(.*?\n)\n/s)
+		{
+			$prefix .= $$contentref;
+			next;
+		}
+
+		my $headers = $prefix.$1;
+		$$contentref = $prefix.$$contentref;
+		$prefix = "";
+
+		(my $msgid) = $headers =~ /^Resent-Message-ID:\s*(<.*?>)$/im;
+		($msgid) = $headers =~ /^Message-ID:\s*(<.*?>)$/im if not $msgid;
+
+		if (not $msgid)
+		{
+			open(my $fh, "<", $contentref) or die;
+			require Mail::Internet;
+			my $mail = Mail::Internet->new($fh);
+			$msgid = $mail->head->get("Resent-Message-ID");
+			$msgid ||= $mail->head->get("Message-ID");
+			chomp $msgid if defined $msgid;
+		}
+
+		if (not $msgid)
+		{
+			warn "Can't extract message-id from these headers:\n$headers\n\n";
+		}
+
+		if (my $already = $index{$msgid})
+		{
+			warn "In $ARGV, already seen $msgid at $already->[2]; now at $line\n";
+		}
+		
+		#print "$msgid at $ARGV line $line\n";
+		$index{$msgid} = [ $reader->offset, $reader->length, $line ];
+		push @list, $msgid;
+		
+		my $n = $$contentref =~ tr/\n//;
+		$line += $n;
+	}
+	(\%index, \@list);
+}
+
+unless ($opts{'1'})
+{
+	# Things in set 1 but not set 2
+	for my $msgid (@$list1)
+	{
+		next if $index2->{$msgid};
+		my $t = $index1->{$msgid};
+		extract($fh1, $t->[0], $t->[1]);
+	}
+}
+
+unless ($opts{'2'})
+{
+	# Things in set 2 but not set 1
+	for my $msgid (@$list2)
+	{
+		next if $index1->{$msgid};
+		my $t = $index2->{$msgid};
+		extract($fh2, $t->[0], $t->[1]);
+	}
+}
+
+unless ($opts{'3'})
+{
+	# Things in both sets 1 and 2
+	for my $msgid (@$list1)
+	{
+		next unless $index2->{$msgid};
+		my $t = $index1->{$msgid};
+		extract($fh1, $t->[0], $t->[1]);
+	}
+}
+
+sub extract
+{
+	my ($fh, $offset, $length) = @_;
+	seek($fh, $offset, 0) or die;
+	defined read($fh, my $data, $length) or die;
+	print $data;
+}
+
+# eof mbox-comm

@@ -1,0 +1,44 @@
+#!/usr/bin/perl -w
+# vi: set ts=4 sw=4 :
+
+use strict;
+
+my @files = @ARGV or die "Usage: KillDupes FILES...";
+
+my %bysize;
+for my $f (@files)
+{
+	++$bysize{-s $f}{$f};
+}
+
+for (values %bysize)
+{
+	next unless keys %$_ > 1;
+	my @poss = keys %$_;
+
+	use Digest::MD5;
+
+	my %byhash;
+	for my $f (@poss)
+	{
+		my $ctx = Digest::MD5->new;
+		open(F, "<:raw", $f) or die $!;
+		$ctx->addfile(*F);
+		++$byhash{$ctx->hexdigest}{$f};
+	}
+
+	#use Data::Dumper;
+	#print Data::Dumper->Dump([ \%byhash ],[ 'byhash' ]);
+
+	for (values %byhash)
+	{
+		my @dupes = keys %$_;
+		next unless @dupes > 1;
+		@dupes = sort { length $a <=> length $b } @dupes;
+		shift @dupes;
+		print "unlink @dupes\n";
+		unlink @dupes;
+	}
+}
+
+# eof KillDupes

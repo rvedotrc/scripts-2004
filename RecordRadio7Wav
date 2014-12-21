@@ -1,0 +1,2 @@
+#!/bin/sh
+/home/rachel/bin/RecordRealAudioWav http://www.bbc.co.uk/bbc7/realplayer/dsatg2.ram radio7-`date +'%Y%m%d-%H%M%S'`.wav
